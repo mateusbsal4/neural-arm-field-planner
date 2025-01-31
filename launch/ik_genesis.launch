@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="genesis_inverse_kinematics" type="IK_genesis.py" name="ik_genesis_node" output="screen" />
+</launch>

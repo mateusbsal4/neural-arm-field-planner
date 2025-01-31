@@ -1,0 +1,18 @@
+<package format="2">
+  <name>genesis_inverse_kinematics</name>
+  <version>0.0.1</version>
+  <description>Python-based inverse kinematics ROS package</description>
+
+  <maintainer email="your_email@example.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <!-- Build dependencies -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Runtime dependencies -->
+  <depend>rospy</depend>
+  <depend>geometry_msgs</depend>
+
+  <export>
+  </export>
+</package>
