@@ -12,7 +12,7 @@ catkin_package()
 
 # Install Python scripts
 catkin_install_python(PROGRAMS
-  scripts/IK_genesis.py
+  scripts/IK_pmaf.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -35,17 +35,12 @@ def main():
             dt=0.01,
         ),
         show_viewer=True,
+        show_FPS=False,
     )
 
     ########################## entities ##########################
     plane = scene.add_entity(
         gs.morphs.Plane(),
-    )
-    cube = scene.add_entity(
-        gs.morphs.Box(
-            size=(0.04, 0.04, 0.04),
-            pos=(0.65, 0.0, 0.02),
-        )
     )
     scene.add_entity(
         gs.morphs.Sphere(
@@ -75,16 +70,25 @@ def main():
             fixed = True,
         )
     )
-
-
-
-
+    scene.add_entity(
+        gs.morphs.Sphere(
+            radius=0.05, 
+            pos=(0.25, -0.1, 0.3),
+            fixed = True,
+        )
+    )
 
     franka = scene.add_entity(
         gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"),
     )
     ########################## build ##########################
     scene.build()
+
+    scene.draw_debug_sphere(
+        pos=(0.65, 0.0, 0.13),
+        radius=0.02,
+        color=(1, 0, 0),
+    )
 
     motors_dof = np.arange(7)
     fingers_dof = np.arange(7, 9)
@@ -106,7 +110,7 @@ def main():
 
 
     while not rospy.is_shutdown():
-        # move to pre-grasp pose
+        # move to planner target
         qpos = franka.inverse_kinematics(
             link=end_effector,
             pos=target_pos,
