@@ -1,6 +1,6 @@
 import genesis as gs
 import numpy as np
-
+import torch
 ########################## init ##########################
 gs.init(backend=gs.gpu)
 
@@ -107,11 +107,29 @@ path = franka.plan_path(
     qpos_goal     = qpos,
     num_waypoints = 200, # 2s duration
 ) 
+
+prev_eepos = franka.get_link("hand").get_pos()
+if isinstance(prev_eepos, torch.Tensor):
+    prev_eepos = prev_eepos.cpu().numpy()
+print("Prev ee pos: ", prev_eepos)
+print("Type ee pos: ", type(prev_eepos))
+
 # execute the planned path
 for waypoint in path:
     franka.control_dofs_position(waypoint)
+
+    ee_pos = franka.get_link("hand").get_pos()    # Trajectory visualization
+    if isinstance(ee_pos, torch.Tensor):
+        ee_pos = ee_pos.cpu().numpy()
+    scene.draw_debug_line(
+        start=prev_eepos,
+        end=ee_pos,
+        color=(0, 1, 0),
+    )
+    prev_eepos = ee_pos
+
     scene.step()
+
 
 while(True):
     scene.step()
-

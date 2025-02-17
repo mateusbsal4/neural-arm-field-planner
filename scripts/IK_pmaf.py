@@ -1,12 +1,15 @@
 import genesis as gs
+import torch
 import numpy as np
 import rospy
 from geometry_msgs.msg import Point
 
 target_pos = np.array([0.0, 0.0, 0.0])
+data_received = False
 
 def goal_pos_callback(data):
-    global target_pos
+    global target_pos, data_received
+    data_received = True
     target_pos[0] = data.x
     target_pos[1] = data.y
     target_pos[2] = data.z
@@ -17,8 +20,8 @@ def main():
     # ROS node initializations
     rospy.init_node('ik_genesis_node', anonymous=True)    
     goal_pos_sub = rospy.Subscriber("agent_position", Point, goal_pos_callback)
-    rate = rospy.Rate(10)  # 10 Hz
-
+    rate = rospy.Rate(50)  # 10 Hz
+    
 
     ########################## Genesis init ##########################
     gs.init(backend=gs.gpu)         
@@ -109,17 +112,34 @@ def main():
 
 
 
+    prev_eepos = franka.get_link("hand").get_pos()
+    if isinstance(prev_eepos, torch.Tensor):
+        prev_eepos = prev_eepos.cpu().numpy()
+
     while not rospy.is_shutdown():
-        # move to planner target
-        qpos = franka.inverse_kinematics(
-            link=end_effector,
-            pos=target_pos,
-            quat=np.array([0, 1, 0, 0]),
-        )
-        # gripper open pos
-        qpos[-2:] = 0.04
-        for i in range(100):
+        if(data_received):
+            # move to pre-grasp pose
+            qpos = franka.inverse_kinematics(
+                link=end_effector,
+                pos=target_pos,
+                quat=np.array([0, 1, 0, 0]),
+            )
+            # gripper open pos
+            qpos[-2:] = 0.04
             franka.control_dofs_position(qpos[:-2], motors_dof)
+
+            ##### Trajectory visualization ####
+            ee_pos = franka.get_link("hand").get_pos()    
+            if isinstance(ee_pos, torch.Tensor):
+                ee_pos = ee_pos.cpu().numpy()
+            scene.draw_debug_line(
+                start=prev_eepos,
+                end=ee_pos,
+                color=(0, 1, 0),
+            )
+            prev_eepos = ee_pos
+            ##################################
+
             scene.step()
 
         rate.sleep()
