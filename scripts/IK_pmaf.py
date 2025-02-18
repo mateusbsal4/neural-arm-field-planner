@@ -1,14 +1,18 @@
+
 import genesis as gs
 import torch
 import numpy as np
 import rospy
 from geometry_msgs.msg import Point
+from genesis_inverse_kinematics.evaluate_path import compute_cost
 
 class IK_Controller:
     def __init__(self):
         self.target_pos = np.array([0.0, 0.0, 0.0])
+        self.goal_pos = np.array([0.65, 0.0, 0.13])
         self.data_received = False
-
+        self.executed_path = []
+        self.TCP_path = []
         # ROS node initializations
         rospy.init_node('ik_genesis_node', anonymous=True)
         self.goal_pos_sub = rospy.Subscriber("agent_position", Point, self.goal_pos_callback)
@@ -47,13 +51,22 @@ class IK_Controller:
             show_viewer=True,
             show_FPS=False,
         )
+        self.obs_radius = 0.07
         self.scene.add_entity(gs.morphs.Plane())
-        self.scene.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.25, 0.3, 0.8), fixed=True))
-        self.scene.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.25, -0.3, 0.8), fixed=True))
-        self.scene.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.5, 0.3, 0.6), fixed=True))
-        self.scene.add_entity(gs.morphs.Sphere(radius=0.1, pos=(0.5, -0.3, 0.6), fixed=True))
-        self.scene.add_entity(gs.morphs.Sphere(radius=0.05, pos=(0.25, -0.1, 0.3), fixed=True))
-
+        self.scene.add_entity(gs.morphs.Sphere(radius=self.obs_radius, pos=(0.25, 0.3, 0.8), fixed=True))
+        self.scene.add_entity(gs.morphs.Sphere(radius=self.obs_radius, pos=(0.25, -0.3, 0.8), fixed=True))
+        self.scene.add_entity(gs.morphs.Sphere(radius=self.obs_radius, pos=(0.5, 0.3, 0.6), fixed=True))
+        self.scene.add_entity(gs.morphs.Sphere(radius=self.obs_radius, pos=(0.5, -0.3, 0.6), fixed=True))
+        self.scene.add_entity(gs.morphs.Sphere(radius=self.obs_radius, pos=(0.25, -0.1, 0.3), fixed=True))
+        # Define the obstacle centers
+        obstacle_centers_list = [
+            np.array([0.25, 0.3, 0.8]),
+            np.array([0.25, -0.3, 0.8]),
+            np.array([0.5, 0.3, 0.6]),
+            np.array([0.5, -0.3, 0.6]),
+            np.array([0.25, -0.1, 0.3])
+        ]
+        self.obstacle_centers = np.array(obstacle_centers_list)
         self.franka = self.scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"))
 
     def configure_controller(self):
@@ -91,6 +104,7 @@ class IK_Controller:
                 ee_pos = self.end_effector.get_pos()
                 if isinstance(ee_pos, torch.Tensor):
                     ee_pos = ee_pos.cpu().numpy()
+                self.TCP_path.append(ee_pos)
                 self.scene.draw_debug_line(
                     start=self.prev_eepos,
                     end=ee_pos,
@@ -98,8 +112,15 @@ class IK_Controller:
                 )
                 self.prev_eepos = ee_pos
 
-                self.scene.step()
+                links_pos = self.franka.get_links_pos()     #Store position of all robot´s links to executed_path
+                if isinstance(links_pos, torch.Tensor):
+                    links_pos = links_pos.cpu().numpy()
+                self.executed_path.append(links_pos)
 
+                self.scene.step()
+            if np.allclose(self.target_pos, self.goal_pos, atol=1e-3):
+                cost = compute_cost(self.executed_path, self.TCP_path, self.obstacle_centers, self.obs_radius)
+                print("Path cost: ", cost)
             self.rate.sleep()
 
 if __name__ == "__main__":
