@@ -1,4 +1,4 @@
-# Genesis Inverse Kinematics Repository
+# Trajectory planning in Genesis
 
 This repository consists of a ROS package with scripts and utilities for benchmarking trajectory planners in simulated cluttered environments with the Franka Emika Panda manipulator in the Genesis physics engine.
 
