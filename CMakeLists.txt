@@ -16,6 +16,7 @@ catkin_python_setup()
 # Install Python scripts (executable nodes)
 catkin_install_python(PROGRAMS
   scripts/IK_pmaf.py
+  scripts/multilink_IK_pmaf.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
