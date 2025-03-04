@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(genesis_inverse_kinematics)
+project(trajectory_planning_genesis)
 
 # Find required catkin components
 find_package(catkin REQUIRED COMPONENTS
@@ -20,7 +20,7 @@ catkin_install_python(PROGRAMS
 )
 
 # Install your Python modules from src
-install(DIRECTORY src/genesis_inverse_kinematics/
+install(DIRECTORY src/trajectory_planning_genesis/
   DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
 )
 

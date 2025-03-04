@@ -1,5 +1,5 @@
 <package format="2">
-  <name>genesis_inverse_kinematics</name>
+  <name>trajectory_planning_genesis</name>
   <version>0.0.1</version>
   <description>Python-based inverse kinematics ROS package</description>
 
