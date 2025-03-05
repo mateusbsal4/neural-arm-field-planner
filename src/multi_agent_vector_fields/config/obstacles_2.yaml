@@ -1,0 +1,25 @@
+obstacles:
+  - name: "Obstacle1"
+    position: [0.25, 0.3, 0.8]
+    velocity: [0.0, 0.0, 0.0]
+    radius: 0.1
+    is_dynamic: false
+    angular_speed: 0.0
+  - name: "Obstacle2"
+    position: [0.25, -0.3, 0.8]
+    velocity: [0.0, 0.0, 0.0]
+    radius: 0.1
+    is_dynamic: false
+    angular_speed: 0.0
+  - name: "Obstacle3"
+    position: [0.5, 0.3, 0.6]
+    velocity: [0.0, 0.0, 0.0]
+    radius: 0.1
+    is_dynamic: false
+    angular_speed: 0.0
+  - name: "Obstacle4"
+    position: [0.5, -0.3, 0.6]
+    velocity: [0.0, 0.0, 0.0]
+    radius: 0.1
+    is_dynamic: false
+    angular_speed: 0.0

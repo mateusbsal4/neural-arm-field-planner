@@ -1,0 +1,10 @@
+#start_pos: [0.088, 0.0, 1.433]      #initial robot position
+#start_pos: [0.088, 0.0, 1.033]
+#goal_pos:  [0.65, 0.0, 0.13]
+#goal_pos: [0.01, 0.78, 0.41]
+#start_orientation: [0.0, 1.0, 0.0, 0.0]
+start_orientation: [0.0, 0.0, 0.0, 1.0]
+#goal_orientation: [0.707, 0.0, 0.707, 0.0]
+#goal_orientation: [0.96593, 0.25882, 0.0, 0.0]
+#goal_orientation: [0.9212, 0.16994, 0.30586, 0.16994]
+goal_orientation: [0.0, 0.0, 0.0, 1.0]

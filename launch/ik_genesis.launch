@@ -1,3 +1,0 @@
-<launch>
-  <node pkg="trajectory_planning_genesis" type="IK_pmaf.py" name="ik_genesis_node" output="screen" />
-</launch>
