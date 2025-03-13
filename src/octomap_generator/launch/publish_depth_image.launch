@@ -1,0 +1,3 @@
+<launch>
+  <node name="depth_image_publisher" pkg="octomap_generator" type="publish_depth_image.py" output="screen"/>
+</launch>

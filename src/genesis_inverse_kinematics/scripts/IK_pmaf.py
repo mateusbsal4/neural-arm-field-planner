@@ -20,7 +20,7 @@ class IK_Controller:
         self.goal_pos_pub = rospy.Publisher("goal_position", Point, queue_size=1)
         self.current_pos_pub = rospy.Publisher("current_position", Point, queue_size=1) 
         self.target_pos_sub = rospy.Subscriber("agent_position", Point, self.target_pos_callback)
-        self.pointcloud_pub = rospy.Publisher("/cameras/depth/color/points", PointCloud2, queue_size=1)
+        #self.pointcloud_pub = rospy.Publisher("/cameras/depth/color/points", PointCloud2, queue_size=1)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -57,8 +57,11 @@ class IK_Controller:
         #Render the depth image of the scene and publish it
         _, depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)
         print("Type of depth image: ", type(depth_img))
-        self.pointcloud = self.convert_depth_image_to_pointcloud(depth_img)
-        self.pointcloud_pub.publish(self.pointcloud)
+        print("Shape of depth image: ", depth_img.shape)
+        depth_image_path = "/home/geriatronics/pmaf_ws/depth_image.npy"
+        np.save(depth_image_path, depth_img)
+        #self.pointcloud = self.convert_depth_image_to_pointcloud(depth_img)
+        #self.pointcloud_pub.publish(self.pointcloud)
 
 
 
@@ -66,32 +69,32 @@ class IK_Controller:
         self.configure_controller()
 
 
-    def convert_depth_image_to_pointcloud(self, depth_img):
-        # Assuming depth_img is a numpy ndarray with shape (height, width)
-        height, width = depth_img.shape
-        points = []
-
-        for v in range(height):
-            for u in range(width):
-                z = depth_img[v, u]
-                if z == 0:
-                    continue
-                x = (u - width / 2) * z / 525.0
-                y = (v - height / 2) * z / 525.0
-                points.append([x, y, z])
-
-        fields = [
-            PointField('x', 0, PointField.FLOAT32, 1),
-            PointField('y', 4, PointField.FLOAT32, 1),
-            PointField('z', 8, PointField.FLOAT32, 1),
-        ]
-
-        header = rospy.Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = 'camera_frame'
-
-        pointcloud = pc2.create_cloud(header, fields, points)
-        return pointcloud
+    #def convert_depth_image_to_pointcloud(self, depth_img):
+    #    # Assuming depth_img is a numpy ndarray with shape (height, width)
+    #    height, width = depth_img.shape
+    #    points = []
+#
+    #    for v in range(height):
+    #        for u in range(width):
+    #            z = depth_img[v, u]
+    #            if z == 0:
+    #                continue
+    #            x = (u - width / 2) * z / 525.0
+    #            y = (v - height / 2) * z / 525.0
+    #            points.append([x, y, z])
+#
+    #    fields = [
+    #        PointField('x', 0, PointField.FLOAT32, 1),
+    #        PointField('y', 4, PointField.FLOAT32, 1),
+    #        PointField('z', 8, PointField.FLOAT32, 1),
+    #    ]
+#
+    #    header = rospy.Header()
+    #    header.stamp = rospy.Time.now()
+    #    header.frame_id = 'camera_frame'
+#
+    #    pointcloud = pc2.create_cloud(header, fields, points)
+    #    return pointcloud
 
 
     def target_pos_callback(self, data):
@@ -116,7 +119,7 @@ class IK_Controller:
         while not rospy.is_shutdown():
             self.start_pos_pub.publish(self.start_pos_msg)
             self.goal_pos_pub.publish(self.goal_pos_msg)
-            self.pointcloud_pub.publish(self.pointcloud)
+            #self.pointcloud_pub.publish(self.pointcloud)
             if self.data_received:
                 self.scene.draw_debug_sphere(
                     pos=self.target_pos,
