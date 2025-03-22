@@ -4,10 +4,14 @@ import torch
 import numpy as np
 import rospy
 from geometry_msgs.msg import Point
-from sensor_msgs.msg import PointCloud2, PointField
-import sensor_msgs.point_cloud2 as pc2
+from sensor_msgs.msg import CameraInfo, Image
+from cv_bridge import CvBridge
+from sensor_msgs.msg import RegionOfInterest
+#from sensor_msgs.msg import PointCloud2, PointField
+#import sensor_msgs.point_cloud2 as pc2
 from genesis_inverse_kinematics.evaluate_path import compute_cost
 from genesis_inverse_kinematics.task_setup import setup_task
+from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
 
 class IK_Controller:
     def __init__(self):
@@ -20,7 +24,8 @@ class IK_Controller:
         self.goal_pos_pub = rospy.Publisher("goal_position", Point, queue_size=1)
         self.current_pos_pub = rospy.Publisher("current_position", Point, queue_size=1) 
         self.target_pos_sub = rospy.Subscriber("agent_position", Point, self.target_pos_callback)
-        #self.pointcloud_pub = rospy.Publisher("/cameras/depth/color/points", PointCloud2, queue_size=1)
+        self.depth_image_pub = rospy.Publisher('/camera/depth/image_rect_raw', Image, queue_size=1)
+        self.camera_info_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -32,6 +37,18 @@ class IK_Controller:
 
         # Build the scene
         self.scene.build()
+        print("Camera pose: ", self.cam.transform)
+        cam_pose = np.array([[ 0, 0, 1, 3.0],
+                             [ 1, 0, 0, 0],
+                             [ 0, 1, 0, 1],
+                             [ 0, 0, 0, 1]])
+        #
+        cam_pose_rviz = np.array([[ 0, 0, -1, 3.0],
+                             [ 1, 0, 0, 0],
+                             [ 0, -1, 0, 1],
+                             [ 0, 0, 0, 1]])
+        publish_transforms(cam_pose_rviz)
+        self.cam.set_pose(cam_pose) #x right, y up, z out of the screen
         self.scene.draw_debug_sphere(
             pos=self.goal_pos,
             radius=0.02,
@@ -54,47 +71,16 @@ class IK_Controller:
         self.goal_pos_msg.z = self.goal_pos[2]
         self.goal_pos_pub.publish(self.goal_pos_msg)
 
-        #Render the depth image of the scene and publish it
-        _, depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)
-        print("Type of depth image: ", type(depth_img))
-        print("Shape of depth image: ", depth_img.shape)
-        depth_image_path = "/home/geriatronics/pmaf_ws/depth_image.npy"
-        np.save(depth_image_path, depth_img)
-        #self.pointcloud = self.convert_depth_image_to_pointcloud(depth_img)
-        #self.pointcloud_pub.publish(self.pointcloud)
+        #Render the depth image of the scene
+        _, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)
+        print("Type of depth image: ", type(self.depth_img))
+        print("Shape of depth image: ", self.depth_img.shape)    
+
 
 
 
         # Set control gains
         self.configure_controller()
-
-
-    #def convert_depth_image_to_pointcloud(self, depth_img):
-    #    # Assuming depth_img is a numpy ndarray with shape (height, width)
-    #    height, width = depth_img.shape
-    #    points = []
-#
-    #    for v in range(height):
-    #        for u in range(width):
-    #            z = depth_img[v, u]
-    #            if z == 0:
-    #                continue
-    #            x = (u - width / 2) * z / 525.0
-    #            y = (v - height / 2) * z / 525.0
-    #            points.append([x, y, z])
-#
-    #    fields = [
-    #        PointField('x', 0, PointField.FLOAT32, 1),
-    #        PointField('y', 4, PointField.FLOAT32, 1),
-    #        PointField('z', 8, PointField.FLOAT32, 1),
-    #    ]
-#
-    #    header = rospy.Header()
-    #    header.stamp = rospy.Time.now()
-    #    header.frame_id = 'camera_frame'
-#
-    #    pointcloud = pc2.create_cloud(header, fields, points)
-    #    return pointcloud
 
 
     def target_pos_callback(self, data):
@@ -111,12 +97,65 @@ class IK_Controller:
             np.array([87, 87, 87, 87, 12, 12, 12, 100, 100])
         )
 
+    def create_depth_image_msg(self, timestamp):
+        bridge = CvBridge()
+        # Convert the depth image to a sensor_msgs/Image
+        depth_image_msg = bridge.cv2_to_imgmsg(self.depth_img, encoding="32FC1")
+        # Set the timestamp and frame ID
+        depth_image_msg.header.stamp = timestamp
+        depth_image_msg.header.frame_id = "camera_depth_optical_frame"
+        return depth_image_msg
+
+    def create_camera_info_msg(self, timestamp):
+        cam_info = CameraInfo()
+        cam_info.header.stamp = timestamp
+        cam_info.header.frame_id = "camera_depth_optical_frame"
+        width = 640
+        height = 480
+        cam_info.width = width
+        cam_info.height = height
+        cam_info.distortion_model = "plumb_bob"
+        cam_info.D = [0, 0, 0, 0, 0]
+        # Compute focal length from the horizontal FOV
+        fov_deg = 30.0
+        fov_rad = fov_deg * np.pi / 180.0
+        fx = (width / 2.0) / np.tan(fov_rad / 2.0)
+        fy = fx  # assuming square pixels
+        cx = width / 2.0
+        cy = height / 2.0
+        cam_info.K = [fx, 0.0, cx,
+                      0.0, fy, cy,
+                      0.0, 0.0, 1.0]
+        cam_info.R = [1.0, 0.0, 0.0,
+                      0.0, 1.0, 0.0,
+                      0.0, 0.0, 1.0]
+        cam_info.P = [fx, 0.0, cx, 0.0,
+                      0.0, fy, cy, 0.0,
+                      0.0, 0.0, 1.0, 0.0]
+        cam_info.binning_x = 0
+        cam_info.binning_y = 0
+        # Region of Interest (full image)
+        cam_info.roi.x_offset = 0
+        cam_info.roi.y_offset = 0
+        cam_info.roi.width = width
+        cam_info.roi.height = height
+        cam_info.roi.do_rectify = False
+        return cam_info
+
+
     def run(self):
         #self.end_effector = self.franka.get_link("hand")
         self.prev_eepos = self.end_effector.get_pos()
         if isinstance(self.prev_eepos, torch.Tensor):
             self.prev_eepos = self.prev_eepos.cpu().numpy()
         while not rospy.is_shutdown():
+            timestamp = rospy.Time.now()
+            # Publish the depth image
+            depth_image_msg = self.create_depth_image_msg(timestamp)
+            camera_info_msg = self.create_camera_info_msg(timestamp)
+            self.depth_image_pub.publish(depth_image_msg)
+            self.camera_info_pub.publish(camera_info_msg)
+            # Publish the start and goal positions
             self.start_pos_pub.publish(self.start_pos_msg)
             self.goal_pos_pub.publish(self.goal_pos_msg)
             #self.pointcloud_pub.publish(self.pointcloud)

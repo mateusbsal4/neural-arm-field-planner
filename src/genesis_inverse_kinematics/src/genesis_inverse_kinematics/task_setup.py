@@ -9,9 +9,10 @@ def setup_task():
     scene.add_entity(gs.morphs.Plane())
     cam = scene.add_camera(
         res    = (640, 480),
+        #pos    = (0.0, 0.0, 0.0),
         pos    = (3.5, 0.0, 2.5),
         lookat = (0, 0, 0.5),
-        fov    = 30,
+        fov    = 45,
         GUI    = False,
     )
     selected_env = 'office'
