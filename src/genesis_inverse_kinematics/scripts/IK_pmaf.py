@@ -5,13 +5,11 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import CameraInfo, Image
-from cv_bridge import CvBridge
-from sensor_msgs.msg import RegionOfInterest
-#from sensor_msgs.msg import PointCloud2, PointField
-#import sensor_msgs.point_cloud2 as pc2
 from genesis_inverse_kinematics.evaluate_path import compute_cost
 from genesis_inverse_kinematics.task_setup import setup_task
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
+from genesis_inverse_kinematics.perception_utils import create_depth_image_msg, create_camera_info_msg
+
 
 class IK_Controller:
     def __init__(self):
@@ -33,7 +31,7 @@ class IK_Controller:
 
         # Setup the task
         self.scene, self.franka, self.cam, self.target_pos = setup_task()
-        self.goal_pos= self.target_pos
+        self.goal_pos = self.target_pos
 
         # Build the scene
         self.scene.build()
@@ -43,11 +41,11 @@ class IK_Controller:
                              [ 0, 1, 0, 1],
                              [ 0, 0, 0, 1]])
         #
-        cam_pose_rviz = np.array([[ 0, 0, -1, 3.0],
+        self.cam_pose_rviz = np.array([[ 0, 0, -1, 3.0],
                              [ 1, 0, 0, 0],
                              [ 0, -1, 0, 1],
                              [ 0, 0, 0, 1]])
-        publish_transforms(cam_pose_rviz)
+        publish_transforms(self.cam_pose_rviz)
         self.cam.set_pose(cam_pose) #x right, y up, z out of the screen
         self.scene.draw_debug_sphere(
             pos=self.goal_pos,
@@ -76,9 +74,6 @@ class IK_Controller:
         print("Type of depth image: ", type(self.depth_img))
         print("Shape of depth image: ", self.depth_img.shape)    
 
-
-
-
         # Set control gains
         self.configure_controller()
 
@@ -97,52 +92,6 @@ class IK_Controller:
             np.array([87, 87, 87, 87, 12, 12, 12, 100, 100])
         )
 
-    def create_depth_image_msg(self, timestamp):
-        bridge = CvBridge()
-        # Convert the depth image to a sensor_msgs/Image
-        depth_image_msg = bridge.cv2_to_imgmsg(self.depth_img, encoding="32FC1")
-        # Set the timestamp and frame ID
-        depth_image_msg.header.stamp = timestamp
-        depth_image_msg.header.frame_id = "camera_depth_optical_frame"
-        return depth_image_msg
-
-    def create_camera_info_msg(self, timestamp):
-        cam_info = CameraInfo()
-        cam_info.header.stamp = timestamp
-        cam_info.header.frame_id = "camera_depth_optical_frame"
-        width = 640
-        height = 480
-        cam_info.width = width
-        cam_info.height = height
-        cam_info.distortion_model = "plumb_bob"
-        cam_info.D = [0, 0, 0, 0, 0]
-        # Compute focal length from the horizontal FOV
-        fov_deg = 30.0
-        fov_rad = fov_deg * np.pi / 180.0
-        fx = (width / 2.0) / np.tan(fov_rad / 2.0)
-        fy = fx  # assuming square pixels
-        cx = width / 2.0
-        cy = height / 2.0
-        cam_info.K = [fx, 0.0, cx,
-                      0.0, fy, cy,
-                      0.0, 0.0, 1.0]
-        cam_info.R = [1.0, 0.0, 0.0,
-                      0.0, 1.0, 0.0,
-                      0.0, 0.0, 1.0]
-        cam_info.P = [fx, 0.0, cx, 0.0,
-                      0.0, fy, cy, 0.0,
-                      0.0, 0.0, 1.0, 0.0]
-        cam_info.binning_x = 0
-        cam_info.binning_y = 0
-        # Region of Interest (full image)
-        cam_info.roi.x_offset = 0
-        cam_info.roi.y_offset = 0
-        cam_info.roi.width = width
-        cam_info.roi.height = height
-        cam_info.roi.do_rectify = False
-        return cam_info
-
-
     def run(self):
         #self.end_effector = self.franka.get_link("hand")
         self.prev_eepos = self.end_effector.get_pos()
@@ -151,14 +100,16 @@ class IK_Controller:
         while not rospy.is_shutdown():
             timestamp = rospy.Time.now()
             # Publish the depth image
-            depth_image_msg = self.create_depth_image_msg(timestamp)
-            camera_info_msg = self.create_camera_info_msg(timestamp)
+            depth_image_msg = create_depth_image_msg(self.depth_img, timestamp)
+            camera_info_msg = create_camera_info_msg(timestamp, self.cam)
             self.depth_image_pub.publish(depth_image_msg)
             self.camera_info_pub.publish(camera_info_msg)
+            # Publish the camera frame        
+            publish_transforms(self.cam_pose_rviz)
             # Publish the start and goal positions
             self.start_pos_pub.publish(self.start_pos_msg)
             self.goal_pos_pub.publish(self.goal_pos_msg)
-            #self.pointcloud_pub.publish(self.pointcloud)
+
             if self.data_received:
                 self.scene.draw_debug_sphere(
                     pos=self.target_pos,
@@ -174,18 +125,18 @@ class IK_Controller:
                 qpos[-2:] = 0.04
                 self.franka.control_dofs_position(qpos[:-2], np.arange(7))
 
-                # Trajectory visualization
                 ee_pos = self.end_effector.get_pos()
                 if isinstance(ee_pos, torch.Tensor):
                     ee_pos = ee_pos.cpu().numpy()
 
+                # Publish the current position
                 current_pos_msg = Point()
                 current_pos_msg.x = ee_pos[0]
                 current_pos_msg.y = ee_pos[1]
                 current_pos_msg.z = ee_pos[2]
                 self.current_pos_pub.publish(current_pos_msg)
 
-
+                # Trajectory visualization
                 self.TCP_path.append(ee_pos)
                 self.scene.draw_debug_line(
                     start=self.prev_eepos,
@@ -199,7 +150,7 @@ class IK_Controller:
                     links_pos = links_pos.cpu().numpy()
                 self.executed_path.append(links_pos)
 
-                self.scene.step()
+                self.scene.step()   
             #if np.allclose(self.target_pos, self.goal_pos, atol=1e-3):
             #    cost = compute_cost(self.executed_path, self.TCP_path, self.obstacle_centers, self.obs_radius)
             #    print("Path cost: ", cost)

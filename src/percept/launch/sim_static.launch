@@ -1,0 +1,10 @@
+<launch>
+    <group ns="perception">
+        <arg name="pipeline_config_file" value="$(find percept)/config/sim_pipeline_conf.yaml"/>
+        <rosparam file="$(arg pipeline_config_file)" command="load"/>
+
+        <node name="perception_node" pkg="percept" type="sim_pipeline.py" output="screen"/>    
+        <node name="perception_rviz" pkg="rviz" type="rviz" args="-d $(find percept)/rviz/perception.rviz"/>
+    </group>
+</launch>
+

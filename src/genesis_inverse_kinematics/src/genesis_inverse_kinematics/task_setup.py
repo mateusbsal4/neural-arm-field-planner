@@ -4,13 +4,13 @@ import numpy as np
 
 def setup_task():
     scene = gs.Scene(
-        viewer_options=gs.options.ViewerOptions(camera_pos=(3, -1, 1.5), camera_lookat=(0.0, 0.0, 0.5), camera_fov=30, max_FPS=60),
+        viewer_options=gs.options.ViewerOptions(camera_pos=(3, 0, 1.0), camera_lookat=(0.0, 0.0, 0.5), camera_fov=45, max_FPS=60),
         sim_options=gs.options.SimOptions(dt=0.01), show_viewer=True, show_FPS=False)
     scene.add_entity(gs.morphs.Plane())
     cam = scene.add_camera(
         res    = (640, 480),
         #pos    = (0.0, 0.0, 0.0),
-        pos    = (3.5, 0.0, 2.5),
+        pos    = (3.0, 0.0, 1.0),
         lookat = (0, 0, 0.5),
         fov    = 45,
         GUI    = False,

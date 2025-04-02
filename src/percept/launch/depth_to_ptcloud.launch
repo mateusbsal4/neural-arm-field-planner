@@ -3,5 +3,6 @@
   <node pkg="nodelet" type="nodelet" name="point_cloud_xyz" args="load depth_image_proc/point_cloud_xyz standalone_nodelet">
     <remap from="camera_info" to="/camera/depth/camera_info"/>
     <remap from="image_rect" to="/camera/depth/image_rect_raw"/>
+    <remap from="points" to="/camera/depth/points"/>
   </node>
 </launch>

@@ -53,6 +53,13 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+install(PROGRAMS
+  src/perception_node.py
+  src/perception_pipeline.py
+  src/sim_pipeline.py
+  DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
+)
+
 install(DIRECTORY 
   launch
   config
