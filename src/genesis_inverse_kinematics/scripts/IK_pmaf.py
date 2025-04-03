@@ -3,10 +3,11 @@ import genesis as gs
 import torch
 import numpy as np
 import rospy
-from geometry_msgs.msg import Point
-from sensor_msgs.msg import CameraInfo, Image
+from geometry_msgs.msg import Point, PoseStamped
+from sensor_msgs.msg import CameraInfo, Image, JointState
+from std_msgs.msg import Float32MultiArray
 from genesis_inverse_kinematics.evaluate_path import compute_cost
-from genesis_inverse_kinematics.task_setup import setup_task
+from genesis_inverse_kinematics.task_setup import setup_task    
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
 from genesis_inverse_kinematics.perception_utils import create_depth_image_msg, create_camera_info_msg
 
@@ -24,6 +25,7 @@ class IK_Controller:
         self.target_pos_sub = rospy.Subscriber("agent_position", Point, self.target_pos_callback)
         self.depth_image_pub = rospy.Publisher('/camera/depth/image_rect_raw', Image, queue_size=1)
         self.camera_info_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
+        self.aabb_pub = rospy.Publisher('/robot_aabb', Float32MultiArray, queue_size=1)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -35,12 +37,11 @@ class IK_Controller:
 
         # Build the scene
         self.scene.build()
-        print("Camera pose: ", self.cam.transform)
+        #print("Camera pose: ", self.cam.transform)
         cam_pose = np.array([[ 0, 0, 1, 3.0],
                              [ 1, 0, 0, 0],
                              [ 0, 1, 0, 1],
                              [ 0, 0, 0, 1]])
-        #
         self.cam_pose_rviz = np.array([[ 0, 0, -1, 3.0],
                              [ 1, 0, 0, 0],
                              [ 0, -1, 0, 1],
@@ -69,14 +70,14 @@ class IK_Controller:
         self.goal_pos_msg.z = self.goal_pos[2]
         self.goal_pos_pub.publish(self.goal_pos_msg)
 
-        #Render the depth image of the scene
-        _, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)
-        print("Type of depth image: ", type(self.depth_img))
-        print("Shape of depth image: ", self.depth_img.shape)    
+        # Render the depth image of the scene
+        _, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)  
+
+        # Publish the robot´s AABB
+        self.publish_robot_aabb()
 
         # Set control gains
         self.configure_controller()
-
 
     def target_pos_callback(self, data):
         self.data_received = True
@@ -92,6 +93,18 @@ class IK_Controller:
             np.array([87, 87, 87, 87, 12, 12, 12, 100, 100])
         )
 
+    def publish_robot_aabb(self):
+        # Get the AABB from the simulation, assuming it returns a Cupoch AABB
+        aabb_list = self.franka.get_AABB().cpu().numpy().tolist()  # aabb_list = [min_bound, max_bound]
+        # Concatenate min and max bounds into a single list of six floats
+        data = aabb_list[0] + aabb_list[1]
+        # Create the Float32MultiArray message
+        msg = Float32MultiArray()
+        msg.data = data
+        # Publish the message
+        self.aabb_pub.publish(msg)
+        rospy.loginfo("Published robot AABB: {}".format(data))
+
     def run(self):
         #self.end_effector = self.franka.get_link("hand")
         self.prev_eepos = self.end_effector.get_pos()
@@ -99,6 +112,8 @@ class IK_Controller:
             self.prev_eepos = self.prev_eepos.cpu().numpy()
         while not rospy.is_shutdown():
             timestamp = rospy.Time.now()
+            # Render the depth image of the scene
+            #_, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)  
             # Publish the depth image
             depth_image_msg = create_depth_image_msg(self.depth_img, timestamp)
             camera_info_msg = create_camera_info_msg(timestamp, self.cam)
@@ -109,6 +124,8 @@ class IK_Controller:
             # Publish the start and goal positions
             self.start_pos_pub.publish(self.start_pos_msg)
             self.goal_pos_pub.publish(self.goal_pos_msg)
+            # Publish the robot´s AABB
+            #self.publish_robot_aabb()
 
             if self.data_received:
                 self.scene.draw_debug_sphere(

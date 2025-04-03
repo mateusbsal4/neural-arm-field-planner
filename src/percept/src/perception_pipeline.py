@@ -59,10 +59,10 @@ class PerceptionPipeline():
             # If a transformation matrix is provided, transform to world-frame
             if tf_matrix is not None:
                 pcd = pcd.transform(tf_matrix)
-    
+
             # Crop point cloud according to scene bounds
             pcd = pcd.crop(self.scene_bbox)
-    
+
             # Optionally downsample the point cloud
             if downsample:
                 every_n_points = 3
@@ -76,8 +76,31 @@ class PerceptionPipeline():
             rospy.logerr(troubleshoot.get_error_text(e))
             return None
 
-    def perform_robot_body_subtraction(self):
-        pass
+    def perform_robot_body_subtraction(self, pointcloud, log_performance: bool = False):
+        start = time.time()
+        filtered_points = pointcloud
+        try:
+            # Use the published AABB
+            aabb = self.robot_aabb
+            rospy.loginfo("Using robot AABB: min {} | max {}".format(aabb.get_min_bound(), aabb.get_max_bound()))
+            # Get indices of points within the AABB
+            indices = aabb.get_point_indices_within_bounding_box(filtered_points.points)
+            # Remove these points from the point cloud
+            filtered_points = filtered_points.select_by_index(indices, invert=True)
+            # Log how many points were removed
+            if len(filtered_points.points) < len(pointcloud.points):
+                removed = len(pointcloud.points) - len(filtered_points.points)
+                rospy.loginfo(f"Robot body subtraction removed {removed} points.")
+            else:
+                rospy.logwarn("Robot body subtraction had no effect; no points were removed. " +
+                              "Check coordinate frames and AABB values.")
+        except Exception as e:
+            rospy.logerr("Failed to process robot body subtraction: {}".format(
+                troubleshoot.get_error_text(e, print_stack_trace=False)
+            ))
+        if log_performance:
+            rospy.loginfo(f"Robot body subtraction (GPU) [sec]: {time.time() - start}")
+        return filtered_points
 
 
     def perform_voxelization(self, pcd:cph.geometry.PointCloud, log_performance:bool=False):
@@ -129,19 +152,15 @@ class PerceptionPipeline():
         """
         log_performance = False
         start = time.time()
-
         # Parse the single point cloud
         pointcloud = self.parse_pointcloud(pointcloud_msg, tf_matrix, downsample=True, log_performance=log_performance)
-
+        # Subtract robot body 
+        pointcloud = self.perform_robot_body_subtraction(pointcloud, log_performance=log_performance)
         # Perform voxelization
         voxel_grid = self.perform_voxelization(pointcloud, log_performance=log_performance)
-
         # Convert voxels to primitives
         primitives_pos = self.convert_voxels_to_primitives(voxel_grid, log_performance=log_performance)
-
-       
-        log_performance = True
+        log_performance = False
         if log_performance:
             rospy.loginfo(f"Perception Pipeline (CPU+GPU) [sec]: {time.time() - start}")
-
         return primitives_pos

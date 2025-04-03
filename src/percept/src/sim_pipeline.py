@@ -5,13 +5,19 @@ import rospy
 import argparse
 import utils.troubleshoot as troubleshoot
 
+import numpy as np
+import cupoch as cph  # Assuming cupoch is imported as cph
+
 import tf2_ros
-import geometry_msgs.msg
+#import geometry_msgs.msg
+from geometry_msgs.msg import PoseStamped, TransformStamped
+from sensor_msgs.msg import JointState
 
 from perception_pipeline import PerceptionPipeline
 from perception_node import PerceptionNode
 
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Float32MultiArray
 from utils.camera_helpers import create_tf_matrix_from_msg
 
 
@@ -22,6 +28,9 @@ class SimPerceptionPipeline(PerceptionPipeline):
         # load configs
         self.load_and_setup_pipeline_configs()
 
+        # Define subscriber for robot´s AABB
+        self.aabb_sub = rospy.Subscriber('/robot_aabb', Float32MultiArray, self.aabb_callback)
+
         # finish setup
         super().setup()
 
@@ -31,7 +40,20 @@ class SimPerceptionPipeline(PerceptionPipeline):
         self.cubic_size = self.perception_pipeline_config['voxel_props']['cubic_size']
         self.voxel_resolution = self.perception_pipeline_config['voxel_props']['voxel_resolution']
 
+    def aabb_callback(self, msg):
+        # Check if the data contains exactly 6 elements
+        if len(msg.data) != 6:
+            rospy.logerr("Received AABB data length is not 6: {}".format(len(msg.data)))
+            return
 
+        # Extract the min and max bounds
+        min_bound = np.array(msg.data[0:3], dtype=np.float32)
+        max_bound = np.array(msg.data[3:6], dtype=np.float32)
+
+        # Create the Cupoch AABB object
+        self.robot_aabb = cph.geometry.AxisAlignedBoundingBox(min_bound, max_bound)
+        rospy.loginfo("Received robot AABB: min {} | max {}".format(min_bound, max_bound))
+    
 class SimPerceptionNode(PerceptionNode):
     def __init__(self):
         rospy.init_node('sim_perception_node')
@@ -44,11 +66,10 @@ class SimPerceptionNode(PerceptionNode):
 
     def setup_ros_subscribers(self):
         rospy.loginfo("Setting up subscribers")
-        self.subscriber = rospy.Subscriber(
+        self.ptcloud_subscriber = rospy.Subscriber(
             '/camera/depth/points', PointCloud2, self.static_camera_callback)
         self.tfBuffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tfBuffer)
-        rospy.loginfo("Any errors above?")
 
     def static_camera_callback(self, msg):
         with self.buffer_lock:
@@ -63,8 +84,7 @@ class SimPerceptionNode(PerceptionNode):
             
             # Create the 4x4 transformation matrix 
             tf_matrix = create_tf_matrix_from_msg(transform)
-            rospy.loginfo("Callback running")
-            print("tf_matrix", tf_matrix)
+            #print("tf_matrix", tf_matrix)
             # Submit the pipeline task with the single point cloud
             future = self.executor.submit(self.run_pipeline, self.pointcloud_buffer, tf_matrix)
 
