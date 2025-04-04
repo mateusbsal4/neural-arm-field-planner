@@ -17,7 +17,7 @@ from perception_pipeline import PerceptionPipeline
 from perception_node import PerceptionNode
 
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Float64MultiArray
 from utils.camera_helpers import create_tf_matrix_from_msg
 
 
@@ -30,6 +30,9 @@ class SimPerceptionPipeline(PerceptionPipeline):
 
         # Define subscriber for robot´s AABB
         self.aabb_sub = rospy.Subscriber('/robot_aabb', Float32MultiArray, self.aabb_callback)
+
+        # Define publisher for voxel spheres
+        self.voxel_grid_pub = rospy.Publisher('/scene_voxels', Float64MultiArray, queue_size=1)
 
         # finish setup
         super().setup()

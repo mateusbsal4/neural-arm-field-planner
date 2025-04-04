@@ -10,6 +10,8 @@ import subprocess
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
+from std_msgs.msg import Float64MultiArray
+
 class PerceptionPipeline():
     def __init__(self):
         self.check_cuda()
@@ -146,11 +148,21 @@ class PerceptionPipeline():
             rospy.loginfo(f"Voxel2Primitives (CPU+GPU) [sec]: {time.time()-start}")
         return primitives_pos
 
+
+    def publish_primitives(self, primitives_pos):
+        sphere_msg = Float64MultiArray()
+        flat_data = []
+        for pos in primitives_pos:
+            flat_data.extend([pos[0], pos[1], pos[2], self.voxel_size])
+        sphere_msg.data = flat_data
+        print("Publishing voxel grid with size:", len(flat_data))
+        self.voxel_grid_pub.publish(sphere_msg)
+
+
     def run_pipeline(self, pointcloud_msg, tf_matrix, log_performance: bool = False):
         """
         Run the perception pipeline for a single point cloud.
         """
-        log_performance = False
         start = time.time()
         # Parse the single point cloud
         pointcloud = self.parse_pointcloud(pointcloud_msg, tf_matrix, downsample=True, log_performance=log_performance)
@@ -160,6 +172,12 @@ class PerceptionPipeline():
         voxel_grid = self.perform_voxelization(pointcloud, log_performance=log_performance)
         # Convert voxels to primitives
         primitives_pos = self.convert_voxels_to_primitives(voxel_grid, log_performance=log_performance)
+        print("Type of primitives_pos:", type(primitives_pos))
+        print("Shape of primitives_pos:", primitives_pos.shape)
+        # Publish primitives
+        self.publish_primitives(primitives_pos)
+
+
         log_performance = False
         if log_performance:
             rospy.loginfo(f"Perception Pipeline (CPU+GPU) [sec]: {time.time() - start}")

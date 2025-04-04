@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -11,6 +12,9 @@
 
 using namespace ghostplanner::cfplanner;
 Eigen::Vector3d start_pos, goal_pos, current_pos;
+std::vector<Obstacle> obstacles;
+bool obstacles_received = false;
+
 
 void visualizeMarker(ros::Publisher& marker_pub, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation, int id, const std::string& ns,
                      const std::string& frame_id, double scale, double r, double g, double b, double a, int type = visualization_msgs::Marker::SPHERE) {
@@ -84,21 +88,21 @@ Eigen::Quaterniond readQuaternion(const YAML::Node& node) {
     return Eigen::Quaterniond(quat[0], quat[1], quat[2], quat[3]);
 }
 
-std::vector<Obstacle> readObstacles(const YAML::Node& node) 
-{
-    std::vector<Obstacle> obstacles;
-    for (const auto& obstacle : node) {
-        std::string name = obstacle["name"].as<std::string>();
-        Eigen::Vector3d position = readVector3d(obstacle["position"]);
-        Eigen::Vector3d velocity = readVector3d(obstacle["velocity"]);
-        double radius = obstacle["radius"].as<double>();
-        bool is_dynamic = obstacle["is_dynamic"].as<bool>();
-        double angular_speed = obstacle["angular_speed"] ? obstacle["angular_speed"].as<double>() : 0.0;
-
-        obstacles.emplace_back(name, position, velocity, radius, is_dynamic, angular_speed);
-    }
-    return obstacles;
-}
+//std::vector<Obstacle> readObstacles(const YAML::Node& node) 
+//{
+//    std::vector<Obstacle> obstacles;
+//    for (const auto& obstacle : node) {
+//        std::string name = obstacle["name"].as<std::string>();
+//        Eigen::Vector3d position = readVector3d(obstacle["position"]);
+//        Eigen::Vector3d velocity = readVector3d(obstacle["velocity"]);
+//        double radius = obstacle["radius"].as<double>();
+//        bool is_dynamic = obstacle["is_dynamic"].as<bool>();
+//        double angular_speed = obstacle["angular_speed"] ? obstacle["angular_speed"].as<double>() : 0.0;
+//
+//        obstacles.emplace_back(name, position, velocity, radius, is_dynamic, angular_speed);
+//    }
+//    return obstacles;
+//}
 
 
 void readAgentParameters(const YAML::Node& node, double& detect_shell_rad, double& agent_mass,
@@ -135,6 +139,31 @@ void currentPosCallback(const geometry_msgs::Point& msg) {
     current_pos << msg.x, msg.y, msg.z;
 }
 
+void voxelGridCallback(const std_msgs::Float64MultiArray::ConstPtr& msg)
+{
+    obstacles.clear();  //Clear previous obstacles
+    const std::vector<double>& data = msg->data;
+    if(data.size() % 4 != 0)
+    {
+        ROS_ERROR("Received voxel spheres data size (%lu) is not a multiple of 4", data.size());
+        return;
+    }
+    
+    for(size_t i = 0; i < data.size(); i += 4)
+    {
+        std::string name = "voxel_sphere_" + std::to_string(i/4);
+        double x = data[i];
+        double y = data[i+1];
+        double z = data[i+2];
+        double radius = data[i+3];
+        Eigen::Vector3d vel(0, 0, 0); // Assuming static obstacles for now
+        Eigen::Vector3d pos(x, y, z);
+        obstacles.emplace_back(name, pos, vel, radius, false, 0.0);
+    }
+    
+    ROS_INFO("Received %lu obstacles from perception.", obstacles.size());
+    obstacles_received = true;
+}
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "cf_agent_demo");
@@ -149,16 +178,18 @@ int main(int argc, char** argv) {
     ros::Subscriber goal_pos_sub = nh.subscribe("goal_position", 1, &goalPosCallback);
     ros::Subscriber start_pos_sub = nh.subscribe("start_position", 1, &startPosCallback);
     ros::Subscriber current_pos_sub = nh.subscribe("current_position", 1, &currentPosCallback);
+    ros::Subscriber voxel_grid_sub = nh.subscribe("scene_voxels", 1, &voxelGridCallback);
+
     tf2_ros::TransformBroadcaster tf_broadcaster;
     // Read from YAML files
     std::string package_path = ros::package::getPath("multi_agent_vector_fields");
     YAML::Node start_goal = YAML::LoadFile(package_path + "/config/start_goal.yaml");
-    YAML::Node obstacles_yaml = YAML::LoadFile(package_path + "/config/obstacles_1.yaml");
+    //YAML::Node obstacles_yaml = YAML::LoadFile(package_path + "/config/obstacles_1.yaml");
     YAML::Node agent_parameters = YAML::LoadFile(package_path + "/config/agent_parameters.yaml");
 
     //Eigen::Vector3d start_pos = readVector3d(start_goal["start_pos"]);
     //Eigen::Vector3d goal_pos = readVector3d(start_goal["goal_pos"]);
-    while (ros::ok() && (start_pos.isZero() || goal_pos.isZero())) {
+    while (ros::ok() && (start_pos.isZero() || goal_pos.isZero() || !obstacles_received)) {
         ros::spinOnce();
         ros::Duration(0.1).sleep();
     }
@@ -170,7 +201,7 @@ int main(int argc, char** argv) {
     ROS_INFO("Goal orientation: [%.2f, %.2f, %.2f, %.2f]", goal_orientation.w(), goal_orientation.x(), goal_orientation.y(), goal_orientation.z());
 
 
-    std::vector<Obstacle> obstacles = readObstacles(obstacles_yaml["obstacles"]);
+    //std::vector<Obstacle> obstacles = readObstacles(obstacles_yaml["obstacles"]);
     for (const auto& obs : obstacles)
     {
         ROS_INFO("Obstacle: %s, Position: [%.2f, %.2f, %.2f], Radius: %.2f", obs.getName().c_str(),
@@ -251,15 +282,14 @@ int main(int argc, char** argv) {
             // }
 
             }
-
-            // visual obstacles 
+            // visualize obstacles 
             for (size_t i = 0; i < obstacles.size(); ++i) 
             {
                 visualizeMarker(marker_pub, obstacles[i].getPosition(),Eigen::Quaterniond::Identity(), static_cast<int>(i + 10),
                                 "cf_agent_demo_obstacles", "map", obstacles[i].getRadius() * 2.0,
                                 0.6, 0.2, 0.1, 1.0);
             }
-
+            //continue;
             // Set Agents first pos
             if (!open_loop) {
                 cf_manager.setRealEEAgentPosition(start_pos);
@@ -318,7 +348,6 @@ int main(int argc, char** argv) {
             //visual current agent
             visualizeMarker(marker_pub, current_agent_pos,Eigen::Quaterniond::Identity() ,100, "cf_agent_demo_agents", "map", agent_radius, 1.0, 1.0, 0.0, 1.0);
 
-
             // update real traj
             geometry_msgs::Point trajectory_point;
             trajectory_point.x = current_agent_pos.x();
@@ -327,13 +356,11 @@ int main(int argc, char** argv) {
             trajectory_marker.points.push_back(trajectory_point);
             trajectory_marker.pose.orientation.w = 1.0;
             marker_pub.publish(trajectory_marker);
-
             // Goal/Start Frame 
             publishFrame(tf_broadcaster, start_pos, start_orientation, "start_frame");
             publishFrame(tf_broadcaster, goal_pos, goal_orientation, "goal_frame");
             // TF Frame 
             publishAgentFrame(tf_broadcaster, current_agent_pos,current_agent_orientation);
-
             // move Real Agent 
             cf_manager.moveRealEEAgent(obstacles, 0.1, 1, best_agent_id);
 
@@ -342,10 +369,11 @@ int main(int argc, char** argv) {
 
             double end_plan_timestamp = ros::Time::now().toSec();
             //ROS_INFO("Planning time: %.3f seconds", end_plan_timestamp - start_plan_timestamp);
-
             // next circle 
             cf_manager.resetEEAgents(updated_position, cf_manager.getNextVelocity(), obstacles);
+            
             cf_manager.startPrediction();
+
 
             // post agent postion 
             geometry_msgs::Point pos_msg;
