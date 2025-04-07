@@ -188,7 +188,7 @@ class IK_Controller:
                 self.scene.step()                 
                 planning_time = time.time() - self.start_time
                 if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
-                len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 10s or if the robot collides
+                len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
                     cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius)
                     print("Path cost: ", cost)
                     if len(self.franka.detect_collision()) > 0:

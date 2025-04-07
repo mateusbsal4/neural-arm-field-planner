@@ -15,7 +15,6 @@ def compute_cost(executed_path, TCP_path, obstacle_centers, obs_radius):
                 if min_distance > 0:
                    C_cl += 1.0/min_distance
                 else: # Collision detected
-                    C_cl += collision_penalty
                     J = (C_cl + C_sm)/i + C_pl + collision_penalty
                     return J
             
