@@ -6,15 +6,19 @@ def compute_cost(executed_path, TCP_path, obstacle_centers, obs_radius):
         C_cl = 0  # clearance cost
         C_pl = 0  # path length cost 
         C_sm = 0  # smoothness cost 
-
+        collision_penalty = 1000  # penalty for collision, needs tuning 
         for i, (link_config, TCP_pos) in enumerate(zip(executed_path, TCP_path)):
             ## Clearance cost ##
             for link_pos in link_config:
                 d_link_to_obs = np.linalg.norm(obstacle_centers - link_pos, axis=1) - obs_radius
                 min_distance = np.min(d_link_to_obs)
-                inverse_min_distance = 1.0 / min_distance if min_distance != 0 else float('inf')
-                C_cl += inverse_min_distance
-
+                if min_distance > 0:
+                   C_cl += 1.0/min_distance
+                else: # Collision detected
+                    C_cl += collision_penalty
+                    J = (C_cl + C_sm)/i + C_pl + collision_penalty
+                    return J
+            
             ## Path length cost ##
             if i > 0:
                 C_pl += np.linalg.norm(TCP_pos - TCP_path[i - 1])

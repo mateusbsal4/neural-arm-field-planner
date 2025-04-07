@@ -3,9 +3,10 @@ import genesis as gs
 import torch
 import numpy as np
 import rospy
+import time
 from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import CameraInfo, Image, JointState
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Float64MultiArray
 from genesis_inverse_kinematics.evaluate_path import compute_cost
 from genesis_inverse_kinematics.task_setup import setup_task    
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
@@ -26,6 +27,7 @@ class IK_Controller:
         self.depth_image_pub = rospy.Publisher('/camera/depth/image_rect_raw', Image, queue_size=1)
         self.camera_info_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
         self.aabb_pub = rospy.Publisher('/robot_aabb', Float32MultiArray, queue_size=1)
+        self.voxel_grid_sub = rospy.Subscriber("/scene_voxels", Float64MultiArray, self.voxel_grid_callback)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -79,7 +81,12 @@ class IK_Controller:
         # Set control gains
         self.configure_controller()
 
+        self.planning_initiated = False
+
     def target_pos_callback(self, data):
+        if not self.planning_initiated:
+            self.start_time = time.time()
+        self.planning_initiated = True
         self.data_received = True
         self.target_pos[0] = data.x
         self.target_pos[1] = data.y
@@ -105,6 +112,17 @@ class IK_Controller:
         self.aabb_pub.publish(msg)
         rospy.loginfo("Published robot AABB: {}".format(data))
 
+    def voxel_grid_callback(self, data):
+        # Convert the received Float64MultiArray data to a NumPy array
+        flat_data = np.array(data.data)    
+        # Reshape the flat data into a 2D array where each row is [x, y, z, radius]
+        obstacles = flat_data.reshape(-1, 4)
+        # Extract obstacle centers
+        self.obs_centers = obstacles[:, :3]  # First three columns are x, y, z
+        # Extract the radius (all obstacles have the same radius, so take the first one)
+        self.obs_radius = obstacles[0, 3]
+        
+
     def run(self):
         #self.end_effector = self.franka.get_link("hand")
         self.prev_eepos = self.end_effector.get_pos()
@@ -128,11 +146,11 @@ class IK_Controller:
             #self.publish_robot_aabb()
 
             if self.data_received:
-                self.scene.draw_debug_sphere(
-                    pos=self.target_pos,
-                    radius=0.02,
-                    color=(1, 0, 0),
-                )
+                #self.scene.draw_debug_sphere(
+                #    pos=self.target_pos,
+                #    radius=0.02,
+                #    color=(1, 0, 0),
+                #)
                 qpos = self.franka.inverse_kinematics(
                     link=self.end_effector,
                     pos=self.target_pos,
@@ -146,7 +164,7 @@ class IK_Controller:
                 if isinstance(ee_pos, torch.Tensor):
                     ee_pos = ee_pos.cpu().numpy()
 
-                # Publish the current position
+                # Publish the current position  
                 current_pos_msg = Point()
                 current_pos_msg.x = ee_pos[0]
                 current_pos_msg.y = ee_pos[1]
@@ -167,10 +185,16 @@ class IK_Controller:
                     links_pos = links_pos.cpu().numpy()
                 self.executed_path.append(links_pos)
 
-                self.scene.step()   
-            #if np.allclose(self.target_pos, self.goal_pos, atol=1e-3):
-            #    cost = compute_cost(self.executed_path, self.TCP_path, self.obstacle_centers, self.obs_radius)
-            #    print("Path cost: ", cost)
+                self.scene.step()                 
+                planning_time = time.time() - self.start_time
+                if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
+                len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 10s or if the robot collides
+                    cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius)
+                    print("Path cost: ", cost)
+                    if len(self.franka.detect_collision()) > 0:
+                        print("Robot collisions detected!") 
+                    break
+            #assert len(self.franka.detect_collision()) == 0, "Robot collisions detected!"    #interrupt the simulation if a collision is detected
             self.rate.sleep()
 
 if __name__ == "__main__":
