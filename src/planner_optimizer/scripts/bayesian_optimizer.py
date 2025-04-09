@@ -88,35 +88,44 @@ if __name__ == "__main__":
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
     num_iterations = 16
     for i in range(num_iterations):
-        rec = hebo_batch.suggest(n_suggestions=1)  
+        rec_x = hebo_batch.suggest(n_suggestions=8)  # Get 8 suggestions in a batch
         rospy.loginfo("Iteration {}: Suggested parameters batch:".format(i))
-        rospy.loginfo("\n{}".format(rec))
-        # Convert the suggested parameters (a DataFrame) to a dictionary.
-        rec_dict = rec.to_dict(orient='records')[0]
-        # Build the parameter dictionary for agent_parameters.yaml.
-        param_dict = {
-            'detect_shell_rad': rec_dict['detect_shell_rad'],
-            'agent_mass': 1.0,
-            'agent_radius': 0.2,
-            'velocity_max': 0.5,
-            'approach_dist': 0.25,
-            'k_a_ee': [rec_dict[f'k_a_ee_{j}'] for j in range(7)],
-            'k_c_ee': [rec_dict[f'k_c_ee_{j}'] for j in range(7)],
-            'k_r_ee': [rec_dict[f'k_r_ee_{j}'] for j in range(7)],
-            'k_r_force': [0.0]*7,  # fixed at 0
-            'k_d_ee': [rec_dict[f'k_d_ee_{j}'] for j in range(7)],
-            'k_manip': [rec_dict[f'k_manip_{j}'] for j in range(7)]
-        }
-        # Write the parameters to the temporary YAML file
-        with open(temp_yaml_file, 'w') as f:
-            yaml.dump(param_dict, f)
-        rospy.loginfo("Written temporary agent parameters for suggestion {}:".format(i))
-        rospy.loginfo(param_dict)
-        # Run the experiment (launch IK and planner nodes, wait for cost)
-        cost = run_experiment()
-        rospy.loginfo("Suggestion {}: Obtained cost = {:.2f}".format(i, cost))
-        # Observe the result with HEBO
-        hebo_batch.observe(rec, np.array([[cost]]))
+        rospy.loginfo("\n{}".format(rec_x))
+        # List to store costs for all suggestions in the batch
+        cost_list = []
+        for j in range(len(rec_x)):
+            single_x = rec_x.iloc[[j]]  # Select a single suggestion as a DataFrame
+            rospy.loginfo("Processing suggestion {} in batch:".format(j))
+            rospy.loginfo("\n{}".format(single_x))
+            # Convert the single suggestion to a dictionary
+            rec_dict = single_x.to_dict(orient='records')[0]
+            # Build the parameter dictionary for agent_parameters.yaml
+            param_dict = {
+                'detect_shell_rad': rec_dict['detect_shell_rad'],
+                'agent_mass': 1.0,
+                'agent_radius': 0.2,
+                'velocity_max': 0.5,
+                'approach_dist': 0.25,
+                'k_a_ee': [rec_dict[f'k_a_ee_{k}'] for k in range(7)],
+                'k_c_ee': [rec_dict[f'k_c_ee_{k}'] for k in range(7)],
+                'k_r_ee': [rec_dict[f'k_r_ee_{k}'] for k in range(7)],
+                'k_r_force': [0.0]*7,  # fixed at 0
+                'k_d_ee': [rec_dict[f'k_d_ee_{k}'] for k in range(7)],
+                'k_manip': [rec_dict[f'k_manip_{k}'] for k in range(7)]
+            }
+            # Write the parameters to the temporary YAML file
+            with open(temp_yaml_file, 'w') as f:
+                yaml.dump(param_dict, f)
+            rospy.loginfo("Written temporary agent parameters for suggestion {}:".format(j))
+            rospy.loginfo(param_dict)
+            # Run the experiment (launch IK and planner nodes, wait for cost)
+            cost = run_experiment()
+            rospy.loginfo("Suggestion {}: Obtained cost = {:.2f}".format(j, cost))
+            cost_list.append([cost])
+        # Concatenate the costs into a single numpy array
+        cost_array = np.array(cost_list)
+        # Observe the batch of suggestions with their corresponding costs
+        hebo_batch.observe(rec_x, cost_array)
         rospy.loginfo("After iteration {}, best cost so far = {:.2f}".format(i, hebo_batch.y.min()))
     rospy.loginfo("Optimization complete. Best parameters found:")
     rospy.loginfo(hebo_batch.rec)
