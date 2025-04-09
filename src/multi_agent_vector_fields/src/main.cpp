@@ -185,14 +185,14 @@ int main(int argc, char** argv) {
     std::string package_path = ros::package::getPath("multi_agent_vector_fields");
     YAML::Node start_goal = YAML::LoadFile(package_path + "/config/start_goal.yaml");
     //YAML::Node obstacles_yaml = YAML::LoadFile(package_path + "/config/obstacles_1.yaml");
-    YAML::Node agent_parameters = YAML::LoadFile(package_path + "/config/agent_parameters.yaml");
+    YAML::Node agent_parameters = YAML::LoadFile(package_path + "/config/agent_parameters_temp.yaml");
 
     //Eigen::Vector3d start_pos = readVector3d(start_goal["start_pos"]);
     //Eigen::Vector3d goal_pos = readVector3d(start_goal["goal_pos"]);
     while (ros::ok() && (start_pos.isZero() || goal_pos.isZero() || !obstacles_received)) {
         ros::spinOnce();
         ros::Duration(0.1).sleep();
-    }
+    }   
     Eigen::Quaterniond start_orientation = readQuaternion(start_goal["start_orientation"]);
     Eigen::Quaterniond goal_orientation = readQuaternion(start_goal["goal_orientation"]);
     ROS_INFO("Start position: [%.2f, %.2f, %.2f]", start_pos.x(), start_pos.y(), start_pos.z());
@@ -215,6 +215,7 @@ int main(int argc, char** argv) {
 
     ROS_INFO("Agent Parameters:");
     ROS_INFO("  Detect shell radius: %.2f", detect_shell_rad);
+
     ROS_INFO("  Agent mass: %.2f", agent_mass);
     ROS_INFO("  Agent radius: %.2f", agent_radius);
     ROS_INFO("  Velocity max: %.2f", velocity_max);

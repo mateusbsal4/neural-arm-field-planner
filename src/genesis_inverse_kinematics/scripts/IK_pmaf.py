@@ -6,7 +6,7 @@ import rospy
 import time
 from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import CameraInfo, Image, JointState
-from std_msgs.msg import Float32MultiArray, Float64MultiArray
+from std_msgs.msg import Float32, Float32MultiArray, Float64MultiArray
 from genesis_inverse_kinematics.evaluate_path import compute_cost
 from genesis_inverse_kinematics.task_setup import setup_task    
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
@@ -28,6 +28,7 @@ class IK_Controller:
         self.camera_info_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
         self.aabb_pub = rospy.Publisher('/robot_aabb', Float32MultiArray, queue_size=1)
         self.voxel_grid_sub = rospy.Subscriber("/scene_voxels", Float64MultiArray, self.voxel_grid_callback)
+        self.cost_pub = rospy.Publisher("/cost", Float32, queue_size=1)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -191,6 +192,7 @@ class IK_Controller:
                 len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
                     cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius)
                     print("Path cost: ", cost)
+                    self.cost_pub.publish(cost)             #Publish the path cost 
                     if len(self.franka.detect_collision()) > 0:
                         print("Robot collisions detected!") 
                     break

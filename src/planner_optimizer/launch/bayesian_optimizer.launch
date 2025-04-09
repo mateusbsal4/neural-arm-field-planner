@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="planner_optimizer" type="bayesian_optimizer.py" name="bayesian_optimizer" output="screen" />
+</launch>
