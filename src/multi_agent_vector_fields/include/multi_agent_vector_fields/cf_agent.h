@@ -101,13 +101,13 @@ class CfAgent {
         goal_orientation_{goal_orientation} ,
         angular_velocity_{Eigen::Vector3d::Zero()}  // 初始化角速度
         {
-              ROS_INFO("CfAgent initialized:");
-    ROS_INFO("  current_orientation_: [w=%.3f, x=%.3f, y=%.3f, z=%.3f]",
-             current_orientation_.w(), current_orientation_.x(),
-             current_orientation_.y(), current_orientation_.z());
-    ROS_INFO("  goal_orientation_!!!!: [w=%.3f, x=%.3f, y=%.3f, z=%.3f]",
-             goal_orientation_.w(), goal_orientation_.x(),
-             goal_orientation_.y(), goal_orientation_.z());
+              //ROS_INFO("CfAgent initialized:");
+    //ROS_INFO("  current_orientation_: [w=%.3f, x=%.3f, y=%.3f, z=%.3f]",
+    //         current_orientation_.w(), current_orientation_.x(),
+    //         current_orientation_.y(), current_orientation_.z());
+    //ROS_INFO("  goal_orientation_!!!!: [w=%.3f, x=%.3f, y=%.3f, z=%.3f]",
+    //         goal_orientation_.w(), goal_orientation_.x(),
+    //         goal_orientation_.y(), goal_orientation_.z());
     Eigen::Vector3d default_rot_vec{0.0, 0.0, 1.0};
     for (size_t i = 0; i < num_obstacles; i++) {
       field_rotation_vecs_.push_back(default_rot_vec);

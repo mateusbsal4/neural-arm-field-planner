@@ -5,6 +5,7 @@ import yaml
 import time
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 import sys
 sys.path.append("/home/geriatronics/miniconda3/envs/ros_perception/lib/python3.9/site-packages")
@@ -87,16 +88,18 @@ if __name__ == "__main__":
     # Temporary config file path 
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
     num_iterations = 16
+
+    costs = []
     for i in range(num_iterations):
         rec_x = hebo_batch.suggest(n_suggestions=8)  # Get 8 suggestions in a batch
         rospy.loginfo("Iteration {}: Suggested parameters batch:".format(i))
-        rospy.loginfo("\n{}".format(rec_x))
+        #rospy.loginfo("\n{}".format(rec_x))
         # List to store costs for all suggestions in the batch
         cost_list = []
         for j in range(len(rec_x)):
             single_x = rec_x.iloc[[j]]  # Select a single suggestion as a DataFrame
             rospy.loginfo("Processing suggestion {} in batch:".format(j))
-            rospy.loginfo("\n{}".format(single_x))
+            #rospy.loginfo("\n{}".format(single_x))
             # Convert the single suggestion to a dictionary
             rec_dict = single_x.to_dict(orient='records')[0]
             # Build the parameter dictionary for agent_parameters.yaml
@@ -116,16 +119,25 @@ if __name__ == "__main__":
             # Write the parameters to the temporary YAML file
             with open(temp_yaml_file, 'w') as f:
                 yaml.dump(param_dict, f)
-            rospy.loginfo("Written temporary agent parameters for suggestion {}:".format(j))
-            rospy.loginfo(param_dict)
+            #rospy.loginfo("Written temporary agent parameters for suggestion {}:".format(j))
+            #rospy.loginfo(param_dict)
             # Run the experiment (launch IK and planner nodes, wait for cost)
             cost = run_experiment()
-            rospy.loginfo("Suggestion {}: Obtained cost = {:.2f}".format(j, cost))
+            #rospy.loginfo("Suggestion {}: Obtained cost = {:.2f}".format(j, cost))
             cost_list.append([cost])
+
+            costs.append(cost)
+            #Plot evolution of the cost 
+            plt.figure(figsize=(8, 6))
+            plt.plot(costs, 'x-')
+            plt.xlabel("Iterations")
+            plt.ylabel("Cost")          
+            plt.savefig("/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/cost_evolution.png")
+            plt.close() 
         # Concatenate the costs into a single numpy array
         cost_array = np.array(cost_list)
         # Observe the batch of suggestions with their corresponding costs
         hebo_batch.observe(rec_x, cost_array)
-        rospy.loginfo("After iteration {}, best cost so far = {:.2f}".format(i, hebo_batch.y.min()))
-    rospy.loginfo("Optimization complete. Best parameters found:")
-    rospy.loginfo(hebo_batch.rec)
+        #rospy.loginfo("After iteration {}, best cost so far = {:.2f}".format(i, hebo_batch.y.min()))
+    #   rospy.loginfo("Optimization complete. Best parameters found:")
+    #   rospy.loginfo(hebo_batch.rec)

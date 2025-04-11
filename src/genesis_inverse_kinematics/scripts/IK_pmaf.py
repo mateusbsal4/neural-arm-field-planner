@@ -36,11 +36,9 @@ class IK_Controller:
 
         # Setup the task
         self.scene, self.franka, self.cam, self.target_pos = setup_task()
-        self.goal_pos = self.target_pos
-
+        self.goal_pos = self.target_pos.copy()
         # Build the scene
         self.scene.build()
-        #print("Camera pose: ", self.cam.transform)
         cam_pose = np.array([[ 0, 0, 1, 3.0],
                              [ 1, 0, 0, 0],
                              [ 0, 1, 0, 1],
@@ -111,7 +109,7 @@ class IK_Controller:
         msg.data = data
         # Publish the message
         self.aabb_pub.publish(msg)
-        rospy.loginfo("Published robot AABB: {}".format(data))
+        #rospy.loginfo("Published robot AABB: {}".format(data))
 
     def voxel_grid_callback(self, data):
         # Convert the received Float64MultiArray data to a NumPy array
@@ -165,6 +163,21 @@ class IK_Controller:
                 if isinstance(ee_pos, torch.Tensor):
                     ee_pos = ee_pos.cpu().numpy()
 
+                self.scene.draw_debug_sphere(
+                    pos=ee_pos,
+                    radius=0.005,
+                    color=(0, 0, 1),
+                )
+
+                #hand_pos = self.franka.get_link("hand").get_pos()
+                #if isinstance(hand_pos, torch.Tensor):
+                #    hand_pos = hand_pos.cpu().numpy()
+                #self.scene.draw_debug_sphere(
+                #    pos=hand_pos,
+                #    radius=0.005,
+                #    color=(0, 1, 0),
+                #)
+
                 # Publish the current position  
                 current_pos_msg = Point()
                 current_pos_msg.x = ee_pos[0]
@@ -188,15 +201,14 @@ class IK_Controller:
 
                 self.scene.step()                 
                 planning_time = time.time() - self.start_time
+                #print("Planning time: ", planning_time)
                 if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
                 len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
-                    cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius)
-                    print("Path cost: ", cost)
+                    cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius, self.goal_pos)
                     self.cost_pub.publish(cost)             #Publish the path cost 
                     if len(self.franka.detect_collision()) > 0:
                         print("Robot collisions detected!") 
                     break
-            #assert len(self.franka.detect_collision()) == 0, "Robot collisions detected!"    #interrupt the simulation if a collision is detected
             self.rate.sleep()
 
 if __name__ == "__main__":

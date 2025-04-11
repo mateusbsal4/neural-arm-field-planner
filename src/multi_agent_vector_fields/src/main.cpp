@@ -9,6 +9,7 @@
 #include <ros/package.h>
 #include "multi_agent_vector_fields/cf_manager.h"
 #include "multi_agent_vector_fields/obstacle.h"
+#include <cassert> 
 
 using namespace ghostplanner::cfplanner;
 Eigen::Vector3d start_pos, goal_pos, current_pos;
@@ -161,7 +162,7 @@ void voxelGridCallback(const std_msgs::Float64MultiArray::ConstPtr& msg)
         obstacles.emplace_back(name, pos, vel, radius, false, 0.0);
     }
     
-    ROS_INFO("Received %lu obstacles from perception.", obstacles.size());
+    //ROS_INFO("Received %lu obstacles from perception.", obstacles.size());
     obstacles_received = true;
 }
 
@@ -195,17 +196,17 @@ int main(int argc, char** argv) {
     }   
     Eigen::Quaterniond start_orientation = readQuaternion(start_goal["start_orientation"]);
     Eigen::Quaterniond goal_orientation = readQuaternion(start_goal["goal_orientation"]);
-    ROS_INFO("Start position: [%.2f, %.2f, %.2f]", start_pos.x(), start_pos.y(), start_pos.z());
-    ROS_INFO("Goal position: [%.2f, %.2f, %.2f]", goal_pos.x(), goal_pos.y(), goal_pos.z());
-    ROS_INFO("Start orientation: [%.2f, %.2f, %.2f, %.2f]", start_orientation.w(), start_orientation.x(), start_orientation.y(), start_orientation.z());
-    ROS_INFO("Goal orientation: [%.2f, %.2f, %.2f, %.2f]", goal_orientation.w(), goal_orientation.x(), goal_orientation.y(), goal_orientation.z());
+    //ROS_INFO("Start position: [%.2f, %.2f, %.2f]", start_pos.x(), start_pos.y(), start_pos.z());
+    //ROS_INFO("Goal position: [%.2f, %.2f, %.2f]", goal_pos.x(), goal_pos.y(), goal_pos.z());
+    //ROS_INFO("Start orientation: [%.2f, %.2f, %.2f, %.2f]", start_orientation.w(), start_orientation.x(), start_orientation.y(), start_orientation.z());
+    //ROS_INFO("Goal orientation: [%.2f, %.2f, %.2f, %.2f]", goal_orientation.w(), goal_orientation.x(), goal_orientation.y(), goal_orientation.z());
 
 
     //std::vector<Obstacle> obstacles = readObstacles(obstacles_yaml["obstacles"]);
     for (const auto& obs : obstacles)
     {
-        ROS_INFO("Obstacle: %s, Position: [%.2f, %.2f, %.2f], Radius: %.2f", obs.getName().c_str(),
-                 obs.getPosition().x(), obs.getPosition().y(), obs.getPosition().z(), obs.getRadius());
+        //ROS_INFO("Obstacle: %s, Position: [%.2f, %.2f, %.2f], Radius: %.2f", obs.getName().c_str(),
+        //         obs.getPosition().x(), obs.getPosition().y(), obs.getPosition().z(), obs.getRadius());
     }
 
     double detect_shell_rad, agent_mass, agent_radius, velocity_max, approach_dist;
@@ -215,6 +216,7 @@ int main(int argc, char** argv) {
 
     ROS_INFO("Agent Parameters:");
     ROS_INFO("  Detect shell radius: %.2f", detect_shell_rad);
+    //assert(false && "Intentional breakpoint for debugging");
 
     ROS_INFO("  Agent mass: %.2f", agent_mass);
     ROS_INFO("  Agent radius: %.2f", agent_radius);
@@ -257,8 +259,6 @@ int main(int argc, char** argv) {
 
     
     while (ros::ok()) {
-        std::cout << "start_pos: " << start_pos << std::endl;
-        std::cout << "goal_pos: " << goal_pos << std::endl;
         if (planning_active) {
             double start_plan_timestamp = ros::Time::now().toSec();
 
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
 
             // evaluaaiton
             int best_agent_id = cf_manager.evaluateAgents(obstacles, 1.0, 1.0, 1.0, 1.0, Eigen::Matrix<double, 6, 1>::Zero());
-            ROS_INFO("Best agent ID: %d", best_agent_id);
+            //ROS_INFO("Best agent ID: %d", best_agent_id);
 
             // visual all paths
             const auto& predicted_paths = cf_manager.getPredictedPaths();
@@ -341,11 +341,11 @@ int main(int argc, char** argv) {
             }
 
             Eigen::Vector3d current_agent_pos = cf_manager.getNextPosition();
-            ROS_INFO("Current position: [%.2f, %.2f, %.2f]", current_agent_pos.x(), current_agent_pos.y(), current_agent_pos.z());
+            //ROS_INFO("Current position: [%.2f, %.2f, %.2f]", current_agent_pos.x(), current_agent_pos.y(), current_agent_pos.z());
             
             Eigen::Quaterniond current_agent_orientation = cf_manager.getNextOrientation();
-            ROS_INFO("Current orientation: [w=%.2f, x=%.2f, y=%.2f, z=%.2f]",current_agent_orientation.w(), current_agent_orientation.x(),
-                                                                             current_agent_orientation.y(), current_agent_orientation.z());
+            //ROS_INFO("Current orientation: [w=%.2f, x=%.2f, y=%.2f, z=%.2f]",current_agent_orientation.w(), current_agent_orientation.x(),
+            //                                                                 current_agent_orientation.y(), current_agent_orientation.z());
             //visual current agent
             visualizeMarker(marker_pub, current_agent_pos,Eigen::Quaterniond::Identity() ,100, "cf_agent_demo_agents", "map", agent_radius, 1.0, 1.0, 0.0, 1.0);
 
