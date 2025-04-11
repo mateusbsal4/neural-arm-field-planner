@@ -135,7 +135,7 @@ def setup_task():
                         surface = gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0)))
         scene.add_entity(gs.morphs.Mesh(file="/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/model/YCB/cracker_box/textured.obj", pos=(0.05,desk_center[1], desk_center[2]+desk_thickness/2 )))
         
-        goal_pos = [cube_center[0], cube_center[1], cube_center[2]+0.1]
+        goal_pos = [cube_center[0], cube_center[1], cube_center[2]]
         #goal_pos = [desk_center[0],desk_center[1], desk_center[2]+desk_thickness/2 + 0.15]
     elif selected_env == 'wall':
         franka = scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"))

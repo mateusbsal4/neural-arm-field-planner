@@ -2,6 +2,7 @@
 import genesis as gs
 import torch
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import rospy
 import time
 from geometry_msgs.msg import Point, PoseStamped
@@ -36,7 +37,8 @@ class IK_Controller:
 
         # Setup the task
         self.scene, self.franka, self.cam, self.target_pos = setup_task()
-        self.goal_pos = self.target_pos.copy()
+        goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
+        self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
         self.scene.build()
         cam_pose = np.array([[ 0, 0, 1, 3.0],
@@ -49,12 +51,16 @@ class IK_Controller:
                              [ 0, 0, 0, 1]])
         publish_transforms(self.cam_pose_rviz)
         self.cam.set_pose(cam_pose) #x right, y up, z out of the screen
-        self.scene.draw_debug_sphere(
+        self.scene.draw_debug_sphere(           #Hand goal position
             pos=self.goal_pos,
             radius=0.02,
             color=(1, 1, 0),
         )
-
+        self.scene.draw_debug_sphere(           #TCP goal position#
+            pos=goal_pos_TCP,
+            radius=0.02,
+            color=(0, 1, 1),
+        )
         # Convert and publish the start position to the PMAF Planner
         self.end_effector = self.franka.get_link("hand")
         start_pos = self.end_effector.get_pos()
@@ -145,11 +151,6 @@ class IK_Controller:
             #self.publish_robot_aabb()
 
             if self.data_received:
-                #self.scene.draw_debug_sphere(
-                #    pos=self.target_pos,
-                #    radius=0.02,
-                #    color=(1, 0, 0),
-                #)
                 qpos = self.franka.inverse_kinematics(
                     link=self.end_effector,
                     pos=self.target_pos,
@@ -163,21 +164,24 @@ class IK_Controller:
                 if isinstance(ee_pos, torch.Tensor):
                     ee_pos = ee_pos.cpu().numpy()
 
-                self.scene.draw_debug_sphere(
+                # Draw the end-effector (hand frame) position
+                self.scene.draw_debug_sphere(          
                     pos=ee_pos,
                     radius=0.005,
                     color=(0, 0, 1),
                 )
-
-                #hand_pos = self.franka.get_link("hand").get_pos()
-                #if isinstance(hand_pos, torch.Tensor):
-                #    hand_pos = hand_pos.cpu().numpy()
-                #self.scene.draw_debug_sphere(
-                #    pos=hand_pos,
-                #    radius=0.005,
-                #    color=(0, 1, 0),
-                #)
-
+                # Draw the TCP position
+                quat_hand = self.end_effector.get_quat()        #get the hand orientation    
+                if isinstance(quat_hand, torch.Tensor):
+                    quat_hand = quat_hand.cpu().numpy()       
+                R_hand = R.from_quat(quat_hand)                
+                R_hand = R_hand.as_matrix()                    #convert to rotation matrix
+                TCP_pos = ee_pos + R_hand.dot(np.array([0, 0, 0.10365]))  # TCP position - 0.1m below the hand position
+                self.scene.draw_debug_sphere(           #TCP position
+                    pos=TCP_pos,
+                    radius=0.005,
+                    color=(0, 1, 0),
+                )
                 # Publish the current position  
                 current_pos_msg = Point()
                 current_pos_msg.x = ee_pos[0]
@@ -185,13 +189,13 @@ class IK_Controller:
                 current_pos_msg.z = ee_pos[2]
                 self.current_pos_pub.publish(current_pos_msg)
 
-                # Trajectory visualization
                 self.TCP_path.append(ee_pos)
-                self.scene.draw_debug_line(
-                    start=self.prev_eepos,
-                    end=ee_pos,
-                    color=(0, 1, 0),
-                )
+                # Trajectory visualization
+                #self.scene.draw_debug_line(
+                #    start=self.prev_eepos,
+                #    end=ee_pos,
+                #    color=(0, 1, 0),
+                #)
                 self.prev_eepos = ee_pos
 
                 links_pos = self.franka.get_links_pos()     #Store position of all robot´s links to executed_path
