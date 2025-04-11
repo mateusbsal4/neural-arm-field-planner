@@ -17,8 +17,8 @@ from genesis_inverse_kinematics.perception_utils import create_depth_image_msg, 
 class IK_Controller:
     def __init__(self):
         self.data_received = False
-        self.executed_path = []
         self.TCP_path = []
+        self.min_dists = []
         # ROS node initializations
         rospy.init_node('ik_genesis_node', anonymous=True)
         self.start_pos_pub = rospy.Publisher("start_position", Point, queue_size=1)
@@ -129,7 +129,6 @@ class IK_Controller:
         
 
     def run(self):
-        #self.end_effector = self.franka.get_link("hand")
         self.prev_eepos = self.end_effector.get_pos()
         if isinstance(self.prev_eepos, torch.Tensor):
             self.prev_eepos = self.prev_eepos.cpu().numpy()
@@ -165,11 +164,11 @@ class IK_Controller:
                     ee_pos = ee_pos.cpu().numpy()
 
                 # Draw the end-effector (hand frame) position
-                self.scene.draw_debug_sphere(          
-                    pos=ee_pos,
-                    radius=0.005,
-                    color=(0, 0, 1),
-                )
+                #self.scene.draw_debug_sphere(          
+                #    pos=ee_pos,
+                #    radius=0.005,
+                #    color=(0, 0, 1),
+                #)
                 # Draw the TCP position
                 quat_hand = self.end_effector.get_quat()        #get the hand orientation    
                 if isinstance(quat_hand, torch.Tensor):
@@ -190,25 +189,33 @@ class IK_Controller:
                 self.current_pos_pub.publish(current_pos_msg)
 
                 self.TCP_path.append(ee_pos)
-                # Trajectory visualization
-                #self.scene.draw_debug_line(
-                #    start=self.prev_eepos,
-                #    end=ee_pos,
-                #    color=(0, 1, 0),
-                #)
                 self.prev_eepos = ee_pos
 
-                links_pos = self.franka.get_links_pos()     #Store position of all robot´s links to executed_path
-                if isinstance(links_pos, torch.Tensor):
-                    links_pos = links_pos.cpu().numpy()
-                self.executed_path.append(links_pos)
+                #robot_verts = self.franka.get_verts()   # Retrieve robots vertices - already a torch tensor 
+                robot_verts = torch.empty(
+                    (0, 3), 
+                    device='cuda' if torch.cuda.is_available() else 'cpu', 
+                    dtype=torch.float32)
+                for link in self.franka.links:
+                    if link.name != "link0":    #Disregard the base link
+                        robot_verts = torch.cat((robot_verts, link.get_verts()), dim=0)  # Concatenate the vertices of all links
+                obs_centers_tensor = torch.tensor(
+                    self.obs_centers, 
+                    device='cuda' if torch.cuda.is_available() else 'cpu',
+                    dtype=torch.float32)
+                #Compute distances between the robot and the obstacles
+                distances = torch.cdist(robot_verts, obs_centers_tensor)
+                # Find the minimum distance
+                min_distance = torch.min(distances).item()
+                self.min_dists.append(min_distance)
+                #print("Minimum distance to obstacles: ", min_distance)
 
                 self.scene.step()                 
                 planning_time = time.time() - self.start_time
                 #print("Planning time: ", planning_time)
                 if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
                 len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
-                    cost = compute_cost(self.executed_path, self.TCP_path, self.obs_centers, self.obs_radius, self.goal_pos)
+                    cost = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
                     self.cost_pub.publish(cost)             #Publish the path cost 
                     if len(self.franka.detect_collision()) > 0:
                         print("Robot collisions detected!") 
