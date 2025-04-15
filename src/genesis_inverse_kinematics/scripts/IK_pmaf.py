@@ -29,7 +29,8 @@ class IK_Controller:
         self.camera_info_pub = rospy.Publisher("/camera/depth/camera_info", CameraInfo, queue_size=1)
         self.aabb_pub = rospy.Publisher('/robot_aabb', Float32MultiArray, queue_size=1)
         self.voxel_grid_sub = rospy.Subscriber("/scene_voxels", Float64MultiArray, self.voxel_grid_callback)
-        self.cost_pub = rospy.Publisher("/cost", Float32, queue_size=1)
+        #self.cost_pub = rospy.Publisher("/cost", Float32, queue_size=1)
+        self.cost_pub = rospy.Publisher("/cost", Float32MultiArray, queue_size=1)
         self.rate = rospy.Rate(10)  
 
         # Genesis initialization
@@ -215,10 +216,18 @@ class IK_Controller:
                 #print("Planning time: ", planning_time)
                 if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
                 len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
-                    cost = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
-                    self.cost_pub.publish(cost)             #Publish the path cost 
+                    #cost = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
+                    #self.cost_pub.publish(cost)             #Publish the path cost
+
+                    costs = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
+                    msg = Float32MultiArray()
+                    msg.data = costs           
+                    self.cost_pub.publish(msg)         
                     if len(self.franka.detect_collision()) > 0:
                         print("Robot collisions detected!") 
+                    ## Append the cost to a file
+                    #with open("/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scripts/cost_log.txt", "a") as file:
+                    #    file.write(f"{cost}\n") 
                     break
             self.rate.sleep()
 
