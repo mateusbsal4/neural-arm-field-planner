@@ -85,8 +85,15 @@ if __name__ == "__main__":
         for j in range(7):
             design_list.append({'name': f'{name}_{j}', 'type': 'num', 'lb': lb, 'ub': ub})
     space = DesignSpace().parse(design_list)
-    hebo_batch = HEBO(space, model_name='svgp', rand_sample=4)
-
+    #cfg = {
+    #    "lr": 0.001,
+    #    "num_epochs": 100,
+    #    "verbose": False,
+    #    "noise_lb": 8e-4,
+    #    "pred_likeli": False,
+    #}
+    #hebo_batch = HEBO(space, model_name='gp', rand_sample=4, model_config=cfg)
+    hebo_batch = HEBO(space, model_name='svgp', rand_sample=4)  
     # Temporary config file path
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
     num_iterations = 25
@@ -95,6 +102,10 @@ if __name__ == "__main__":
     costs = []
     individual_costs_history = []
     best_cost = float('inf')
+
+    base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer"
+    results_path = os.path.join(base_path, "results/svgp")
+    figures_path = os.path.join(base_path, "figures/svgp")
 
     for i in range(num_iterations):
         rec_x = hebo_batch.suggest(n_suggestions=8)
@@ -130,33 +141,32 @@ if __name__ == "__main__":
             costs.append(total_cost)
             individual_costs_history.append(indiv_costs)
                 # Save the best-found parameters and cost to a YAML file
-            output_yaml_file = "/home/geriatronics/pmaf_ws/src/planner_optimizer/results/gp/best_parameters.yaml"
+            output_yaml_file = os.path.join(results_path, "best_parameters.yaml")
             best_params['best_cost'] = best_cost
             with open(output_yaml_file, 'w') as f:
                 yaml.dump(best_params, f, default_flow_style=False)
             rospy.loginfo(f"Best parameters and cost saved to {output_yaml_file}")
-
         cost_array = np.array(cost_list)
         hebo_batch.observe(rec_x, cost_array)
-
         # Save the global cost evolution plot
+        global_cost_plot_path = os.path.join(figures_path, "cost_evolution.png")
         plt.figure(figsize=(8, 6))
         plt.plot(costs, 'x-')
         plt.xlabel("Iterations")
         plt.ylabel("Global Cost")
-        plt.title("Global Cost Evolution")
-        plt.savefig("/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/gp/cost_evolution.png")
+        plt.title("Global Cost Evolution - GP HEBO")
+        plt.savefig(global_cost_plot_path)
         plt.close()
-
         # Save the individual cost components evolution plot
+        individual_costs_plot_path = os.path.join(figures_path, "individual_costs_evolution.png")
         plt.figure(figsize=(8, 6))
         individual_costs_array = np.array(individual_costs_history)
         for idx, label in enumerate(["C_cl", "C_pl", "C_sm", "C_gd"]):
             plt.plot(individual_costs_array[:, idx], label=label)
         plt.xlabel("Iterations")
         plt.ylabel("Individual Costs")
-        plt.title("Individual Costs Evolution")
+        plt.title("Individual Costs Evolution - GP HEBO")
         plt.legend()
-        plt.savefig("/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/gp/individual_costs_evolution.png")
+        plt.savefig(individual_costs_plot_path)
         plt.close()
 

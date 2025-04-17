@@ -21,6 +21,8 @@ class IK_Controller:
         self.min_dists = []
         # ROS node initializations
         rospy.init_node('ik_genesis_node', anonymous=True)
+        self.evaluate = rospy.get_param("~evaluate", False)  # Default to False
+        self.bo = rospy.get_param("~bo", False)  # Default to False
         self.start_pos_pub = rospy.Publisher("start_position", Point, queue_size=1)
         self.goal_pos_pub = rospy.Publisher("goal_position", Point, queue_size=1)
         self.current_pos_pub = rospy.Publisher("current_position", Point, queue_size=1) 
@@ -130,6 +132,7 @@ class IK_Controller:
         
 
     def run(self):
+        started_recording = False
         self.prev_eepos = self.end_effector.get_pos()
         if isinstance(self.prev_eepos, torch.Tensor):
             self.prev_eepos = self.prev_eepos.cpu().numpy()
@@ -151,6 +154,9 @@ class IK_Controller:
             #self.publish_robot_aabb()
 
             if self.data_received:
+                if self.evaluate and not started_recording:
+                    self.cam.start_recording()
+                    started_recording = True
                 qpos = self.franka.inverse_kinematics(
                     link=self.end_effector,
                     pos=self.target_pos,
@@ -210,24 +216,30 @@ class IK_Controller:
                 min_distance = torch.min(distances).item()
                 self.min_dists.append(min_distance)
                 #print("Minimum distance to obstacles: ", min_distance)
-
-                self.scene.step()                 
+                self.scene.step()    
+                if started_recording:
+                    self.cam.render()             
                 planning_time = time.time() - self.start_time
-                #print("Planning time: ", planning_time)
-                if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or planning_time >= 30 or 
-                len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s or if the robot collides
-                    #cost = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
-                    #self.cost_pub.publish(cost)             #Publish the path cost
-
+                if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or (planning_time >= 30 and not self.evaluate) 
+                or len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s (except when evaluating) or if the robot collides
                     costs = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
                     msg = Float32MultiArray()
                     msg.data = costs           
                     self.cost_pub.publish(msg)         
                     if len(self.franka.detect_collision()) > 0:
                         print("Robot collisions detected!") 
-                    ## Append the cost to a file
-                    #with open("/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scripts/cost_log.txt", "a") as file:
-                    #    file.write(f"{cost}\n") 
+                    # Append cost to a file and stop recording if evaluating
+                    if self.evaluate:
+                        # Determine paths based on whether Bayesian Optimization (BO) is enabled
+                        base_path = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/eval_costs"
+                        subfolder = "optimal" if self.bo else "predefined"
+                        cost_log_path = f"{base_path}/{subfolder}/cost_log.txt"
+                        video_path = f"{base_path}/{subfolder}/video.mp4"
+                        cost = np.sum(costs)  # Sum the individual costs
+                        with open(cost_log_path, "a") as file:
+                            file.write(f"{cost}\n")
+                        # Stop recording and save the video
+                        self.cam.stop_recording(save_to_filename=video_path, fps=15)
                     break
             self.rate.sleep()
 

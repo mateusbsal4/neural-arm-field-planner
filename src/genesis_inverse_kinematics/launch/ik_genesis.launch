@@ -1,3 +1,11 @@
 <launch>
-  <node pkg="genesis_inverse_kinematics" type="IK_pmaf.py" name="ik_genesis_node" output="screen" />
+  <!-- Define arguments with default values -->
+  <arg name="evaluate" default="false" />
+  <arg name="bo" default="false" />
+
+  <!-- Pass the arguments to the node -->
+  <node pkg="genesis_inverse_kinematics" type="IK_pmaf.py" name="ik_genesis_node" output="screen">
+    <param name="evaluate" value="$(arg evaluate)" />
+    <param name="bo" value="$(arg bo)" />
+  </node>
 </launch>
