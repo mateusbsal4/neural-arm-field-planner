@@ -3,8 +3,18 @@ import numpy as np
 import yaml
 import os
 
-def setup_task(randomize=False, config_filename="office_config.yaml"):
+def setup_task(randomize=False, config_filename=None):
     base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene/"
+    # Automatically generate a unique config filename if none is provided
+    if config_filename is None:
+        i = 1
+        while True:
+            generated_filename = f"scene_{i}.yaml"
+            full_path = os.path.join(base_dir, generated_filename)
+            if not os.path.exists(full_path):  # Check if the file already exists
+                config_filename = generated_filename
+                break
+            i += 1
     config_filename = os.path.join(base_dir, config_filename)
     # Create the scene and camera
     scene = gs.Scene(
@@ -157,6 +167,8 @@ def recreate_task(config_filename):
     """
     Recreate the office scene using a YAML configuration file.
     """
+    base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene/"
+    config_filename = os.path.join(base_dir, config_filename)
     with open(config_filename, 'r') as f:
         config = yaml.safe_load(f)
     scene = gs.Scene(

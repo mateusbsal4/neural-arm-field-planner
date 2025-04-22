@@ -9,7 +9,7 @@ from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import Float32, Float32MultiArray, Float64MultiArray
 from genesis_inverse_kinematics.evaluate_path import compute_cost
-from genesis_inverse_kinematics.task_setup import setup_task    
+from genesis_inverse_kinematics.task_setup import setup_task, recreate_task     
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
 from genesis_inverse_kinematics.perception_utils import create_depth_image_msg, create_camera_info_msg
 
@@ -37,8 +37,8 @@ class IK_Controller:
         # Genesis initialization
         gs.init(backend=gs.gpu)
         # Setup the task
-        #self.scene, self.franka, self.cam, self.target_pos = setup_task()
-        self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)  # Randomize only if not evaluating
+        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = False, config_filename = "base_scene.yaml")  
+        #self.scene, self.franka, self.cam, self.target_pos = recreate_task("base_scene.yaml")  
         goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
         self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
