@@ -34,16 +34,15 @@ class IK_Controller:
         #self.cost_pub = rospy.Publisher("/cost", Float32, queue_size=1)
         self.cost_pub = rospy.Publisher("/cost", Float32MultiArray, queue_size=1)
         self.rate = rospy.Rate(10)  
-
         # Genesis initialization
         gs.init(backend=gs.gpu)
-
         # Setup the task
-        self.scene, self.franka, self.cam, self.target_pos = setup_task()
+        #self.scene, self.franka, self.cam, self.target_pos = setup_task()
+        self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)  # Randomize only if not evaluating
         goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
         self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
-        self.scene.build()
+        self.scene.build()  
         cam_pose = np.array([[ 0, 0, 1, 3.0],
                              [ 1, 0, 0, 0],
                              [ 0, 1, 0, 1],
@@ -54,16 +53,6 @@ class IK_Controller:
                              [ 0, 0, 0, 1]])
         publish_transforms(self.cam_pose_rviz)
         self.cam.set_pose(cam_pose) #x right, y up, z out of the screen
-        self.scene.draw_debug_sphere(           #Hand goal position
-            pos=self.goal_pos,
-            radius=0.02,
-            color=(1, 1, 0),
-        )
-        self.scene.draw_debug_sphere(           #TCP goal position#
-            pos=goal_pos_TCP,
-            radius=0.02,
-            color=(0, 1, 1),
-        )
         # Convert and publish the start position to the PMAF Planner
         self.end_effector = self.franka.get_link("hand")
         start_pos = self.end_effector.get_pos()
@@ -72,23 +61,29 @@ class IK_Controller:
         self.start_pos_msg.y = start_pos[1]
         self.start_pos_msg.z = start_pos[2]
         self.start_pos_pub.publish(self.start_pos_msg)
-
         # Convert and publish the goal position to the PMAF Planner
         self.goal_pos_msg = Point()
         self.goal_pos_msg.x = self.goal_pos[0]
         self.goal_pos_msg.y = self.goal_pos[1]
         self.goal_pos_msg.z = self.goal_pos[2]
         self.goal_pos_pub.publish(self.goal_pos_msg)
-
         # Render the depth image of the scene
         _, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)  
-
+        # Draw goal position for the hand and TCP frames
+        self.scene.draw_debug_sphere(           
+            pos=self.goal_pos,
+            radius=0.02,
+            color=(1, 1, 0),
+        )
+        self.scene.draw_debug_sphere(           
+            pos=goal_pos_TCP,
+            radius=0.02,
+            color=(0, 1, 1),
+        )
         # Publish the robot´s AABB
         self.publish_robot_aabb()
-
         # Set control gains
         self.configure_controller()
-
         self.planning_initiated = False
 
     def target_pos_callback(self, data):

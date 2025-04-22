@@ -1,147 +1,228 @@
-# filepath: /home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scripts/task_setup.py
 import genesis as gs
 import numpy as np
+import yaml
+import os
 
-def setup_task():
+def setup_task(randomize=False, config_filename="office_config.yaml"):
+    base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene/"
+    config_filename = os.path.join(base_dir, config_filename)
+    # Create the scene and camera
     scene = gs.Scene(
-        viewer_options=gs.options.ViewerOptions(camera_pos=(3, 0, 1.0), camera_lookat=(0.0, 0.0, 0.5), camera_fov=45, max_FPS=60),
-        sim_options=gs.options.SimOptions(dt=0.01), show_viewer=True, show_FPS=False)
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(3, 0, 1.0),
+            camera_lookat=(0.0, 0.0, 0.5),
+            camera_fov=45,
+            max_FPS=60
+        ),
+        sim_options=gs.options.SimOptions(dt=0.01),
+        show_viewer=True,
+        show_FPS=False
+    )
     scene.add_entity(gs.morphs.Plane())
     cam = scene.add_camera(
-        res    = (640, 480),
-        #pos    = (0.0, 0.0, 0.0),
-        pos    = (3.0, 0.0, 1.0),
-        lookat = (0, 0, 0.5),
-        fov    = 45,
-        GUI    = False,
+        res=(640, 480),
+        pos=(3.0, 0.0, 1.0),
+        lookat=(0, 0, 0.5),
+        fov=45,
+        GUI=False
     )
     selected_env = 'office'
-    if selected_env == 'factory':   #Simulates a pick and place task between two conveyor belts in a factory environment 
-        franka = scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"))
-        h_plat = 0.1
-        w_plat = 0.3
-        l_plat = 2.0
-        platform1_center = (0.0, -0.6, 0.3)
-        platform2_center = (0.0, 0.6, 0.3)
-        platform_size = (l_plat, w_plat, h_plat)
-        ## Add conveyor belts to the scene ##
-        scene.add_entity(gs.morphs.Box(pos=platform1_center, fixed=True, size=platform_size), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Box(pos=platform2_center, fixed=True, size=platform_size), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        ########################################
-        y_left_pillars = platform1_center[1]
-        x_left_pillars = (platform1_center[0] - 0.25*l_plat, platform1_center[0], platform1_center[0] + 0.25*l_plat)
-        y_right_pillars = platform2_center[1]
-        x_right_pillars = (platform2_center[0] - 0.25*l_plat, platform2_center[0], platform2_center[0] + 0.25*l_plat)
-        h_pillars = platform1_center[2] - h_plat/2
-        ## Add supporting pillars to the scene ##
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_left_pillars[0], y_left_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_left_pillars[1], y_left_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1),
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_left_pillars[2], y_left_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_right_pillars[0], y_right_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_right_pillars[1], y_right_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        scene.add_entity(gs.morphs.Cylinder(pos=(x_right_pillars[2], y_right_pillars, h_pillars/2), fixed=True, height=h_pillars, radius=0.1), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        ########################################   
-        ## Add objects to the left conveyor belt ## 
-        r_sphere = 0.01      
-        box_edge_length = 0.02
-        scene.add_entity(gs.morphs.Sphere(pos=(x_left_pillars[1], y_left_pillars, platform1_center[2]+0.5*h_plat+r_sphere), radius = r_sphere, fixed = True), 
-                        surface = gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0)))
-        scene.add_entity(gs.morphs.Box(pos=(x_left_pillars[2], y_left_pillars, platform1_center[2]+0.5*h_plat+box_edge_length), 
-                        size = (box_edge_length, box_edge_length, box_edge_length)),
-                        surface = gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0)))
-        ## Add containers to the right conveyor belt ##
-        box_thickness = 0.01
-        box_side = w_plat/2
-        box_height = 0.05
-        lower_box_center = (platform2_center[0], platform2_center[1], platform2_center[2]+h_plat/2 +box_thickness/2)
-        scene.add_entity(gs.morphs.Box(pos=lower_box_center, fixed=True, size=(box_side, box_side, box_thickness)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #lower box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0], lower_box_center[1]-0.5*box_side-0.5*box_thickness, platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_side, box_thickness, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0], lower_box_center[1]+0.5*box_side+0.5*box_thickness, platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_side, box_thickness, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container            
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0]-0.5*box_side-0.5*box_thickness, lower_box_center[1], platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_thickness, box_side, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0]+0.5*box_side+0.5*box_thickness, lower_box_center[1], platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_thickness, box_side, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container     
-        lower_box_center = (platform2_center[0]+l_plat/4, platform2_center[1], platform2_center[2]+h_plat/2 +box_thickness/2)
-        scene.add_entity(gs.morphs.Box(pos=lower_box_center, fixed=True, 
-                        size=(box_side, box_side, box_thickness)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #lower box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0], lower_box_center[1]-0.5*box_side-0.5*box_thickness, platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_side, box_thickness, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0], lower_box_center[1]+0.5*box_side+0.5*box_thickness, platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_side, box_thickness, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container            
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0]-0.5*box_side-0.5*box_thickness, lower_box_center[1], platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_thickness, box_side, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container
-        scene.add_entity(gs.morphs.Box(pos=(lower_box_center[0]+0.5*box_side+0.5*box_thickness, lower_box_center[1], platform2_center[2]+h_plat/2+box_height/2), fixed=True, 
-                        size=(box_thickness, box_side, box_height)), 
-                        surface=gs.surfaces.Plastic(color=(0, 0, 0, 1.0)))  #side box of the container                
-        ############################################
-    elif selected_env == "office":
-        ### Add the the robot mounted on a box ###
+    if selected_env == "office":
+        # Common parameters
         base_box_height = 0.4
         base_box_width = 0.4
-        scene.add_entity(gs.morphs.Box(pos=(0, 0.0, 0.2), fixed=True, size=(0.3, base_box_width, base_box_height)),
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))  
-        franka = scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos = (0, 0, 0.4)))
-        ###########################################
-        ### Add box  behind the robot to simulate a wall / window ###
-        wall_width = 0.1
-        wall_height = 2.0
-        wall_length = 5.0
-        scene.add_entity(gs.morphs.Box(pos=(-0.45, 0.0, wall_height/2), fixed=True, size=(wall_width, wall_length, wall_height)),
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))  
-        ##############################################################
-        ##### Add pillar between the window and the desk with objects #####
-        pillar_center = (-0.3, 0.6, wall_height/2)
-        r_pillar = 0.15
-        scene.add_entity(gs.morphs.Cylinder(pos=pillar_center, fixed=True, height=wall_height, radius=r_pillar), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        ###################################################################
-        ###### Add desk in front of the pillar ######
         desk_thickness = 0.05
-        desk_center = (0.5, pillar_center[1], base_box_height - desk_thickness/2)
-        desk_size = (2*desk_center[0], 2*(desk_center[1]-base_box_width),desk_thickness)
-        scene.add_entity(gs.morphs.Box(pos=desk_center, fixed=True, size=desk_size),
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))) 
-        pillar_center = (desk_center[0]/2, 0.6, (desk_center[2]-desk_thickness/2)/2)
-        scene.add_entity(gs.morphs.Cylinder(pos=pillar_center, fixed=True, height=2*pillar_center[2], radius=0.05), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))
-        pillar_center = (1.5*desk_center[0], 0.6, (desk_center[2]-desk_thickness/2)/2)
-        scene.add_entity(gs.morphs.Cylinder(pos=pillar_center, fixed=True, height=2*pillar_center[2], radius=0.05), 
-                        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0)))     
-        #############################################
-        ###### Add objects on the desk #####
+        wall_height = 2.0
+        wall_width = 0.1
+        wall_length = 5.0
+        r_pillar = 0.15
         box_edge_length = 0.02
-        cube_center = (box_edge_length/2, desk_center[1]+desk_size[1]/2-box_edge_length, desk_center[2]+desk_thickness/2+box_edge_length/2)
-        scene.add_entity(gs.morphs.Box(pos=cube_center, 
-                        size = (box_edge_length, box_edge_length, box_edge_length), fixed=True), 
-                        surface = gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0)))
-        scene.add_entity(gs.morphs.Mesh(file="/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/model/YCB/cracker_box/textured.obj", pos=(0.05,desk_center[1], desk_center[2]+desk_thickness/2 )))
-        
-        goal_pos = [cube_center[0], cube_center[1], cube_center[2]]
-        #goal_pos = [desk_center[0],desk_center[1], desk_center[2]+desk_thickness/2 + 0.15]
-    elif selected_env == 'wall':
-        franka = scene.add_entity(gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"))
-        scene.add_entity(gs.morphs.Box(pos=(0.7, 0.0, 0.4), fixed=True, size=(0.9, 0.05, 0.8)))
-
-
-
-    #goal_pos = [0.65, 0.0, 0.13]
+        # Default positions
+        wall_pos_default = (-0.45, 0.0, wall_height / 2)
+        pillar_pos_default = (-0.3, 0.6, wall_height / 2)
+        desk_center_default = (0.5, pillar_pos_default[1], base_box_height - desk_thickness / 2)
+        desk_size_default = (2 * desk_center_default[0], 2 * (desk_center_default[1] - base_box_width), desk_thickness)
+        support1_default = (desk_center_default[0] / 2, desk_center_default[1], (desk_center_default[2] - desk_thickness / 2) / 2)
+        support2_default = (1.5 * desk_center_default[0], desk_center_default[1], (desk_center_default[2] - desk_thickness / 2) / 2)
+        cube_center_default = (
+            box_edge_length / 2,
+            desk_center_default[1] + desk_size_default[1] / 2 - box_edge_length,
+            desk_center_default[2] + desk_thickness / 2 + box_edge_length / 2
+        )
+        cracker_box_center_default = (0.05, desk_center_default[1], desk_center_default[2] + desk_thickness / 2)
+        goal_pos_default = [cube_center_default[0], cube_center_default[1], cube_center_default[2]]
+        if randomize:
+            # Clearance margin
+            margin = 0.05
+            # Randomize wall
+            wall_x = np.random.uniform(-0.6, -0.3)
+            wall_y = np.random.uniform(-0.2, 0.2)
+            wall_pos = (wall_x, wall_y, wall_height / 2)
+            # Randomize pillar
+            min_pillar_x = wall_x + wall_width/2 + r_pillar + margin
+            pillar_x = np.random.uniform(min_pillar_x, min_pillar_x+0.1)     #varies between -0.05 and 0.05
+            min_pillar_y = base_box_width/2 + r_pillar + margin
+            pillar_y = np.random.uniform(min_pillar_y, min_pillar_y+0.3)     #varies between 0.4 and 0.6
+            pillar_pos = (pillar_x, pillar_y, wall_height / 2)
+            # Desk dimensions fixed
+            half_length = desk_size_default[0] / 2
+            half_width  = desk_size_default[1] / 2
+            # Randomize desk
+            min_desk_center_x = pillar_x + r_pillar + margin + half_length
+            desk_y = np.random.uniform(0, 0.4)
+            desk_x = (np.random.uniform(min_desk_center_x, min_desk_center_x+0.2) if desk_y >half_width + base_box_width/2
+            else np.random.uniform(half_length+base_box_width/2, half_length+base_box_width/2+0.3)) 
+            # Desk Z (fixed)
+            desk_z = base_box_height - desk_thickness / 2
+            desk_center = (desk_x, desk_y, desk_z)
+            desk_size   = desk_size_default
+            # Support pillars under desk
+            support1 = (desk_x - half_width + 0.05, desk_y, (desk_z - desk_thickness / 2) / 2)
+            support2 = (desk_x + half_width + 0.05, desk_y, (desk_z - desk_thickness / 2) / 2)
+            # Cube on the upper right section of the desk
+            cube_x = desk_x - np.random.uniform(0.0, half_length - box_edge_length)
+            cube_y = desk_y + np.random.uniform(box_edge_length, half_width - box_edge_length)
+            cube_z = desk_z + desk_thickness / 2 + box_edge_length / 2
+            cube_center = (cube_x, cube_y, cube_z)
+            # Cracker box on the upper left section of the desk
+            cracker_box_center_x = desk_x - np.random.uniform(0.0, half_length - box_edge_length)
+            cracker_box_center_y =  desk_y - np.random.uniform(box_edge_length, half_width - box_edge_length)
+            cracker_box_center = (cracker_box_center_x, cracker_box_center_y, cube_z)
+            # Goal position - 1st quadrant, within robot´s reachable WS
+            goal_pos = [np.random.uniform(0.2, 0.6), np.random.uniform(0.2, 0.5), np.random.uniform(cube_z, cube_z+0.2)]
+        else:
+            wall_pos    = wall_pos_default
+            pillar_pos  = pillar_pos_default
+            desk_center = desk_center_default
+            desk_size   = desk_size_default
+            support1    = support1_default
+            support2    = support2_default
+            cube_center = cube_center_default
+            cracker_box_center = cracker_box_center_default
+            goal_pos  = goal_pos_default
+        # Build scene
+        scene.add_entity(
+            gs.morphs.Box(pos=(0, 0.0, 0.2), fixed=True, size=(0.3, base_box_width, base_box_height)),
+            surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+        )
+        franka = scene.add_entity(
+            gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos=(0, 0, 0.4))
+        )
+        scene.add_entity(
+            gs.morphs.Box(pos=wall_pos, fixed=True, size=(wall_width, wall_length, wall_height)),
+            surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+        )
+        scene.add_entity(
+            gs.morphs.Cylinder(pos=pillar_pos, fixed=True, height=wall_height, radius=r_pillar),
+            surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+        )
+        scene.add_entity(
+            gs.morphs.Box(pos=desk_center, fixed=True, size=desk_size),
+            surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+        )
+        for supp in [support1, support2]:
+            scene.add_entity(
+                gs.morphs.Cylinder(pos=supp, fixed=True, height=2 * supp[2], radius=0.05),
+                surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+            )
+        scene.add_entity(
+            gs.morphs.Box(pos=cube_center, size=(box_edge_length, box_edge_length, box_edge_length), fixed=True),
+            surface=gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0))
+        )
+        scene.add_entity(
+            gs.morphs.Mesh(
+                file="/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/model/YCB/cracker_box/textured.obj",
+                pos=cracker_box_center
+            )
+        )
+        # Save configuration
+        config = {
+            'wall_pos': wall_pos,
+            'pillar_pos': pillar_pos,
+            'desk_center': desk_center,
+            'desk_size': desk_size,
+            'support_pillars': [support1, support2],
+            'cube_center': cube_center,
+            'cracker_box_center': cracker_box_center,
+            'goal_pos': goal_pos
+        }
+        with open(config_filename, 'w') as f:
+            yaml.safe_dump(config, f)
+    else:
+        pass
     return scene, franka, cam, goal_pos
+
+
+def recreate_task(config_filename):
+    """
+    Recreate the office scene using a YAML configuration file.
+    """
+    with open(config_filename, 'r') as f:
+        config = yaml.safe_load(f)
+    scene = gs.Scene(
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(3, 0, 1.0),
+            camera_lookat=(0.0, 0.0, 0.5),
+            camera_fov=45,
+            max_FPS=60
+        ),
+        sim_options=gs.options.SimOptions(dt=0.01),
+        show_viewer=True,
+        show_FPS=False
+    )
+    scene.add_entity(gs.morphs.Plane())
+    cam = scene.add_camera(
+        res=(640, 480),
+        pos=(3.0, 0.0, 1.0),
+        lookat=(0, 0, 0.5),
+        fov=45,
+        GUI=False
+    )
+    # Build office using config
+    base_box_height = 0.4
+    base_box_width = 0.4
+    desk_thickness = 0.05
+    wall_height = 2.0
+    wall_width = 0.1
+    wall_length = 5.0
+    r_pillar = 0.15
+    box_edge_length = 0.02
+    scene.add_entity(
+        gs.morphs.Box(pos=(0, 0.0, 0.2), fixed=True, size=(0.3, base_box_width, base_box_height)),
+        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+    )
+    franka = scene.add_entity(
+        gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos=(0, 0, 0.4))
+    )
+    scene.add_entity(
+        gs.morphs.Box(pos=tuple(config['wall_pos']), fixed=True, size=(wall_width, wall_length, wall_height)),
+        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+    )
+    scene.add_entity(
+        gs.morphs.Cylinder(pos=tuple(config['pillar_pos']), fixed=True, height=wall_height, radius=r_pillar),
+        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+    )
+    scene.add_entity(
+        gs.morphs.Box(pos=tuple(config['desk_center']), fixed=True, size=tuple(config['desk_size'])),
+        surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+    )
+    for supp in config['support_pillars']:
+        scene.add_entity(
+            gs.morphs.Cylinder(pos=tuple(supp), fixed=True, height=2 * supp[2], radius=0.05),
+            surface=gs.surfaces.Metal(color=(0.5, 0.5, 0.5, 1.0))
+        )
+    scene.add_entity(
+        gs.morphs.Box(pos=tuple(config['cube_center']), size=(box_edge_length, box_edge_length, box_edge_length), fixed=True),
+        surface=gs.surfaces.Plastic(color=(0.0, 0.0, 0.0, 1.0))
+    )
+    scene.add_entity(
+        gs.morphs.Mesh(
+            file="/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/model/YCB/cracker_box/textured.obj",
+            pos=config['cracker_box_center']
+        )
+    )
+    goal_pos = config['goal_pos']
+    return scene, franka, cam, goal_pos
+
+
+
