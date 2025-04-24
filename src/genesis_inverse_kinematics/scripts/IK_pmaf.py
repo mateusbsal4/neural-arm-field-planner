@@ -19,7 +19,7 @@ class IK_Controller:
         self.data_received = False
         self.TCP_path = []
         self.min_dists = []
-        # ROS node initializations
+        # ROS node initializations  
         rospy.init_node('ik_genesis_node', anonymous=True)
         self.evaluate = rospy.get_param("~evaluate", False)  # Default to False
         self.bo = rospy.get_param("~bo", False)  # Default to False
@@ -37,20 +37,22 @@ class IK_Controller:
         # Genesis initialization
         gs.init(backend=gs.gpu)
         # Setup the task
-        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = False, config_filename = "base_scene.yaml")  
-        #self.scene, self.franka, self.cam, self.target_pos = recreate_task("base_scene.yaml")  
+        #self.scene, self.franka, self.cam, self.target_pos = setup_task()
+        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = False, config_filename = "scene_2.yaml")  
+        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)  
+        self.scene, self.franka, self.cam, self.target_pos = recreate_task("scene_2.yaml")
         goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
         self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
         self.scene.build()  
         cam_pose = np.array([[ 0, 0, 1, 3.0],
-                             [ 1, 0, 0, 0],
-                             [ 0, 1, 0, 1],
+                             [ 1, 0, 0, 0.5],
+                             [ 0, 1, 0, 1.5],
                              [ 0, 0, 0, 1]])
         self.cam_pose_rviz = np.array([[ 0, 0, -1, 3.0],
-                             [ 1, 0, 0, 0],
-                             [ 0, -1, 0, 1],
-                             [ 0, 0, 0, 1]])
+                                        [ 1, 0, 0, 0.5],
+                                        [ 0, -1, 0, 1.5],
+                                        [ 0, 0, 0, 1]])
         publish_transforms(self.cam_pose_rviz)
         self.cam.set_pose(cam_pose) #x right, y up, z out of the screen
         # Convert and publish the start position to the PMAF Planner
