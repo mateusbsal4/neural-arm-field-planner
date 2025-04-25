@@ -2,9 +2,12 @@
   <!-- Define arguments with default values -->
   <arg name="evaluate" default="false" />
   <arg name="bo" default="false" />
-
+  <arg name="recreate" default="true" />
+  <arg name="scene" default="base_scene" />
   <!-- Pass the arguments to the node -->
   <node pkg="genesis_inverse_kinematics" type="IK_pmaf.py" name="ik_genesis_node" output="screen">
+    <param name="recreate" value="$(arg recreate)" />
+    <param name="scene" value="$(arg scene)" />
     <param name="evaluate" value="$(arg evaluate)" />
     <param name="bo" value="$(arg bo)" />
   </node>

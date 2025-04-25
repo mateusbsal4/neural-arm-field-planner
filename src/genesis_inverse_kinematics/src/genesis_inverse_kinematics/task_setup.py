@@ -3,20 +3,50 @@ import numpy as np
 import yaml
 import os
 
-def add_entities_from_config(scene, config):
+# Static parameters
+base_box_height = 0.5
+base_box_width  = 0.4
+desk_thickness  = 0.05
+wall_height     = 2.0
+wall_width      = 0.1
+wall_length     = 5.0
+r_pillar        = 0.15
+box_edge        = 0.02
+margin          = 0.05
+
+def create_sphere(scene, pose, radius):
+    scene.add_entity(
+        gs.morphs.Sphere(pos=pose, fixed=True, radius=radius),
+        surface=gs.surfaces.Plastic(color=(0.5,0.5,0.5,1))
+    )
+
+def create_cuboid(scene, pose, size):
+    scene.add_entity(
+        gs.morphs.Box(pos=pose[:3], euler=pose[3:], fixed=True, size=size),
+        surface=gs.surfaces.Plastic(color=(0.5,0.5,0.5,1))
+    )
+
+def create_cylinder(scene, pose, radius, height):
+    scene.add_entity(
+        gs.morphs.Cylinder(pos=pose[:3], euler=pose[3:], fixed=True, height=height, radius=radius),
+        surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
+    )
+
+def create_scene(config):
     """
     Populate the given Genesis `scene` with all environment entities described in `config`.
     Does not add the robot or camera.
     """
-    # Static parameters
-    base_box_height = 0.5
-    base_box_width  = 0.4
-    desk_thickness  = 0.05
-    wall_height     = 2.0
-    wall_width      = 0.1
-    wall_length     = 5.0
-    r_pillar        = 0.15
-    box_edge        = 0.02
+    scene = gs.Scene(
+        viewer_options=gs.options.ViewerOptions(
+            camera_pos=(3, 0, 1.0), camera_lookat=(0, 0, 0.5),
+            camera_fov=60, max_FPS=60
+        ),
+        sim_options=gs.options.SimOptions(dt=0.01),
+        show_viewer=True, show_FPS=False
+    )
+    scene.add_entity(gs.morphs.Plane())
+    cam = scene.add_camera(res=(640,480), pos=(3,0,1.0), lookat=(0,0,0.5), fov=60, GUI=False)
     # Unpack config
     wp = tuple(config['wall_pos'])
     pp = tuple(config['pillar_pos'])
@@ -24,81 +54,61 @@ def add_entities_from_config(scene, config):
     sp = [tuple(x) for x in config['support_pillars']]
     cc = tuple(config['cube_center']); cbc = tuple(config['cracker_box_center'])
     # Base box
-    scene.add_entity(
-        gs.morphs.Box(pos=(0,0,base_box_height/2), fixed=True,
-                      size=(0.3,base_box_width,base_box_height)),
-        surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-    )
+    create_cuboid(scene, pose=(0, 0, base_box_height / 2, 0, 0, 0), size=(0.3, base_box_width, base_box_height))
     # Wall
-    scene.add_entity(
-        gs.morphs.Box(pos=wp, fixed=True,
-                      size=(wall_width,wall_length,wall_height)),
-        surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-    )
+    create_cuboid(scene, pose=(wp[0], wp[1], wp[2], 0, 0, 0), size=(wall_width, wall_length, wall_height))
     # Pillar
-    scene.add_entity(
-        gs.morphs.Cylinder(pos=pp, fixed=True,
-                            height=wall_height, radius=r_pillar),
-        surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-    )
+    create_cylinder(scene, pose=(pp[0], pp[1], pp[2], 0, 0, 0), radius=r_pillar, height=wall_height)
     # Main desk
-    scene.add_entity(
-        gs.morphs.Box(pos=dc, fixed=True, size=ds),
-        surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-    )
+    create_cuboid(scene, pose=(dc[0], dc[1], dc[2], 0, 0, 0), size=ds)
     # Desk supports
     for supp in sp:
-        scene.add_entity(
-            gs.morphs.Cylinder(pos=supp, fixed=True,
-                                height=2*supp[2], radius=0.05),
-            surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-        )
+        create_cylinder(scene, pose=(supp[0], supp[1], supp[2], 0, 0, 0), radius=0.05, height=2 * supp[2])
     # Cube
-    scene.add_entity(
-        gs.morphs.Box(pos=cc, fixed=True,
-                      size=(box_edge,box_edge,box_edge)),
-        surface=gs.surfaces.Plastic(color=(0,0,0,1))
-    )
-    # Cracker box mesh
+    create_cuboid(scene, pose=(cc[0], cc[1], cc[2], 0, 0, 0), size=(box_edge, box_edge, box_edge))
+    # Cracker box mesh (non-primitive, remains unchanged)
     scene.add_entity(
         gs.morphs.Mesh(
             file="/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/model/YCB/cracker_box/textured.obj",
             pos=cbc
         )
     )
+    for p in range(config['n_floating_primitives']):
+        # Cuboid
+        pose = config['pose_cuboid' + str(p)]
+        size = config['size_cuboid' + str(p)]
+        create_cuboid(scene, pose, size)
+
+        # Cylinder
+        pose = config['pose_cylinder' + str(p)]
+        radius = config['radius_cylinder' + str(p)]
+        height = config['height_cylinder' + str(p)]
+        create_cylinder(scene, pose, radius, height)
+        # Sphere
+        pose = config['pose_sphere' + str(p)]
+        radius = config['radius_sphere' + str(p)]
+        create_sphere(scene, pose, radius)
     # Optional boxes
     if 'box_1_center' in config:
-        scene.add_entity(
-            gs.morphs.Box(pos=tuple(config['box_1_center']), size=tuple(config['box_1_size']), fixed=True),
-            surface=gs.surfaces.Plastic(color=(0.5,0.5,0.5,1))
-        )
-        scene.add_entity(
-            gs.morphs.Box(pos=tuple(config['box_2_center']), size=tuple(config['box_2_size']), fixed=True),
-            surface=gs.surfaces.Plastic(color=(0.5,0.5,0.5,1))
-        )
+        create_cuboid(scene, pose=tuple(config['box_1_center']) + (0, 0, 0), size=tuple(config['box_1_size']))
+        create_cuboid(scene, pose=tuple(config['box_2_center']) + (0, 0, 0), size=tuple(config['box_2_size']))
     # Optional second desk
     if 'desk_2_center' in config:
-        d2c = tuple(config['desk_2_center']); d2s = tuple(config['desk_2_size'])
-        scene.add_entity(
-            gs.morphs.Box(pos=d2c, size=d2s, fixed=True),
-            surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-        )
+        d2c = tuple(config['desk_2_center'])
+        d2s = tuple(config['desk_2_size'])
+        create_cuboid(scene, pose=d2c + (0, 0, 0), size=d2s)
         for supp in config['support_pillars_2']:
             s2 = tuple(supp)
-            scene.add_entity(
-                gs.morphs.Cylinder(pos=s2, fixed=True,
-                                    height=2*s2[2], radius=0.05),
-                surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-            )
+            create_cylinder(scene, pose=s2 + (0, 0, 0), radius=0.05, height=2 * s2[2])
     # Optional second pillar
     if 'pillar2_center' in config:
         p2c = tuple(config['pillar2_center'])
-        scene.add_entity(
-              gs.morphs.Cylinder(pos=p2c, fixed=True,
-                                height=wall_height/2, radius=config['pillar2_radius']),
-            surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
-        )
-    return scene
+        create_cylinder(scene, pose=p2c + (0, 0, 0), radius=config['pillar2_radius'], height=wall_height / 2)
+    # Add robot
+    franka = scene.add_entity(
+        gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos=(0,0,0.4))
+    )
+    return scene, franka, cam
 
 def setup_task(randomize=False, config_filename=None):
     """
@@ -117,28 +127,6 @@ def setup_task(randomize=False, config_filename=None):
                 break
             idx += 1
     config_path = os.path.join(base_dir, config_filename)
-    # Create scene and camera
-    scene = gs.Scene(
-        viewer_options=gs.options.ViewerOptions(
-            camera_pos=(3, 0, 1.0), camera_lookat=(0, 0, 0.5),
-            camera_fov=60, max_FPS=60
-        ),
-        sim_options=gs.options.SimOptions(dt=0.01),
-        show_viewer=True, show_FPS=False
-    )
-    scene.add_entity(gs.morphs.Plane())
-    cam = scene.add_camera(res=(640,480), pos=(3,0,1.0), lookat=(0,0,0.5), fov=60, GUI=False)
-    # Static parameters
-    base_box_height = 0.5
-    base_box_width  = 0.4
-    desk_thickness  = 0.05
-    wall_height     = 2.0
-    wall_width      = 0.1
-    wall_length     = 5.0
-    r_pillar        = 0.15
-    box_edge        = 0.02
-    margin          = 0.05
-    # Default placements
     wall_pos_default = (-0.5, 0.0, wall_height/2)
     pillar_pos_default = (-0.3, 0.6, wall_height/2)
     desk_center_default = (0.5, pillar_pos_default[1], base_box_height - desk_thickness/2)
@@ -159,7 +147,9 @@ def setup_task(randomize=False, config_filename=None):
     # Assign positions
     if not randomize:
         # Save YAML config
+        goal_pos = goal_pos_default
         config = {
+            'n_floating_primitives': 0,
             'wall_pos': wall_pos_default,
             'pillar_pos': pillar_pos_default,
             'desk_center': desk_center_default,
@@ -167,14 +157,16 @@ def setup_task(randomize=False, config_filename=None):
             'support_pillars': [support1_default, support2_default],
             'cube_center': cube_center_default,
             'cracker_box_center': cracker_box_center_default,
-            'goal_pos': goal_pos_default
+            'goal_pos': goal_pos
         }
     else:
-        add_boxes = np.random.randn() > 0.5
+        n_floating_primitives = 6    
+        #add_boxes = np.random.randn() > 0.5
+        add_boxes = False
         #add_second_desk = np.random.randn() > 0.5
         add_second_desk = False     
         #add_second_pillar = np.random.randn() > 0.5  
-        add_second_pillar = True #enable for testing 
+        add_second_pillar = False #enable for testing 
         # Random wall
         wall_x = np.random.uniform(-0.6, -0.3)
         wall_y = np.random.uniform(-0.2, 0.2)
@@ -216,6 +208,7 @@ def setup_task(randomize=False, config_filename=None):
         ]
         # Save YAML config
         config = {
+            'n_floating_primitives': n_floating_primitives,
             'wall_pos': wall_pos,
             'pillar_pos': pillar_pos,
             'desk_center': desk_center,
@@ -225,6 +218,20 @@ def setup_task(randomize=False, config_filename=None):
             'cracker_box_center': cracker_box_center,
             'goal_pos': goal_pos
         }
+        # Add random floating primitive shapes
+        for p in range(n_floating_primitives):
+            x_range = (0.0, 1.0)
+            y_range = (-2.0, desk_center_y - desk_size[1]/2)
+            z_range = (0.0, wall_height)
+            config['pose_cuboid'+str(p)] = (np.random.uniform(*x_range), np.random.uniform(*y_range), np.random.uniform(*z_range),
+                                                   np.random.uniform(0, 2*np.pi), np.random.uniform(0, 2*np.pi), np.random.uniform(0, 2*np.pi))     
+            config['size_cuboid'+str(p)] = (np.random.uniform(0.05, 0.1), np.random.uniform(0.05, 0.1), np.random.uniform(0.05, 0.1)) 
+            config['pose_cylinder'+str(p)] = (np.random.uniform(*x_range), np.random.uniform(*y_range), np.random.uniform(*z_range),
+                                                     np.random.uniform(0, 2*np.pi), np.random.uniform(0, 2*np.pi), np.random.uniform(0, 2*np.pi))
+            config['radius_cylinder'+str(p)] = np.random.uniform(0.05, 0.1)
+            config['height_cylinder'+str(p)] = np.random.uniform(0.1, 0.3)
+            config['pose_sphere'+str(p)] = (np.random.uniform(*x_range), np.random.uniform(*y_range), np.random.uniform(*z_range)) 
+            config['radius_sphere'+str(p)] = np.random.uniform(0.05, 0.1)
         # Optional boxes
         if add_boxes:
             pillar_left_edge_y = pillar_pos[1] - r_pillar
@@ -268,11 +275,7 @@ def setup_task(randomize=False, config_filename=None):
     with open(config_path, 'w') as f:
         yaml.safe_dump(config, f)
     # Build environment
-    scene = add_entities_from_config(scene, config)
-    # Add robot
-    franka = scene.add_entity(
-        gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos=(0,0,0.4))
-    )
+    scene, franka, cam = create_scene(config)
     return scene, franka, cam, goal_pos
 
 def recreate_task(config_filename):
@@ -282,23 +285,11 @@ def recreate_task(config_filename):
     base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene"
     os.makedirs(base_dir, exist_ok=True)
     config_filename = os.path.join(base_dir, config_filename)
+    print("Loading config from", config_filename)
     with open(config_filename, 'r') as f:
         cfg = yaml.safe_load(f)
-    scene = gs.Scene(
-        viewer_options=gs.options.ViewerOptions(
-            camera_pos=(3, 0, 1.0), camera_lookat=(0, 0, 0.5),
-            camera_fov=60, max_FPS=60
-        ),
-        sim_options=gs.options.SimOptions(dt=0.01),
-        show_viewer=True, show_FPS=False
-    )
-    scene.add_entity(gs.morphs.Plane())
-    cam = scene.add_camera(res=(640,480), pos=(3,0,1.0), lookat=(0,0,0.5), fov=60, GUI=False)
+    print("cfg", cfg)
     # Build environment
-    scene = add_entities_from_config(scene, cfg)
-    # Add robot
-    franka = scene.add_entity(
-        gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml", pos=(0,0,0.4))
-    )
+    scene, franka, cam = create_scene(cfg)
     goal = list(cfg['goal_pos'])
     return scene, franka, cam, goal

@@ -21,6 +21,8 @@ class IK_Controller:
         self.min_dists = []
         # ROS node initializations  
         rospy.init_node('ik_genesis_node', anonymous=True)
+        self.scene_config = rospy.get_param("~scene")  # Default to "base_scene.yaml"
+        self.recreate = rospy.get_param("~recreate")  # Default to False
         self.evaluate = rospy.get_param("~evaluate", False)  # Default to False
         self.bo = rospy.get_param("~bo", False)  # Default to False
         self.start_pos_pub = rospy.Publisher("start_position", Point, queue_size=1)
@@ -37,10 +39,10 @@ class IK_Controller:
         # Genesis initialization
         gs.init(backend=gs.gpu)
         # Setup the task
-        #self.scene, self.franka, self.cam, self.target_pos = setup_task()
-        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = False, config_filename = "scene_2.yaml")  
-        #self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)  
-        self.scene, self.franka, self.cam, self.target_pos = recreate_task("scene_2.yaml")
+        if self.recreate:    #recreate a specific scene
+            self.scene, self.franka, self.cam, self.target_pos = recreate_task(self.scene_config + ".yaml")
+        else:           #setup a new random scene
+            self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)
         goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
         self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
@@ -217,7 +219,7 @@ class IK_Controller:
                 if started_recording:
                     self.cam.render()             
                 planning_time = time.time() - self.start_time
-                if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or (planning_time >= 30 and not self.evaluate) 
+                if (np.allclose(ee_pos, self.goal_pos, atol=1e-3) or (planning_time >= 50 and not self.evaluate) 
                 or len(self.franka.detect_collision()) > 0):            # planning stops upon reaching the goal position, after 30s (except when evaluating) or if the robot collides
                     costs = compute_cost(self.TCP_path, self.min_dists, self.obs_radius, self.goal_pos)
                     msg = Float32MultiArray()

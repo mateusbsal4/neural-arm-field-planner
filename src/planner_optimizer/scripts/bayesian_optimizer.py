@@ -26,23 +26,27 @@ def cost_callback(msg):
     individual_costs = msg.data  # Store the list of costs
     global_cost = sum(individual_costs)  # Compute the total cost as the sum of individual costs
 
-def launch_experiment():
+def launch_experiment(scene):
     """
     Launch the IK_pmaf node and the planner node using their launch files.
     """
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     roslaunch.configure_logging(uuid)
-    # Launch IK node
+
+    # Launch IK node with the scene parameter
     ik_launch_file = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/launch/ik_genesis.launch"
-    ik_parent = roslaunch.parent.ROSLaunchParent(uuid, [ik_launch_file])
+    ik_args = [f"scene:={scene}"]  # Pass the scene argument dynamically
+    ik_parent = roslaunch.parent.ROSLaunchParent(uuid, [(ik_launch_file, ik_args)])
     ik_parent.start()
-    rospy.loginfo("IK node launched.")
+    rospy.loginfo(f"IK node launched with scene: {scene}")
     time.sleep(5)  # Wait to ensure the IK node is running
+
     # Launch planner node
     planner_launch_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/launch/main_demo.launch"
     planner_parent = roslaunch.parent.ROSLaunchParent(uuid, [planner_launch_file])
     planner_parent.start()
     rospy.loginfo("Planner node launched.")
+
     return ik_parent, planner_parent
 
 def shutdown_experiment(ik_parent, planner_parent):
@@ -50,14 +54,14 @@ def shutdown_experiment(ik_parent, planner_parent):
     planner_parent.shutdown()
     rospy.loginfo("Experiment nodes shutdown.")
 
-def run_experiment():
+def run_experiment(scene):
     """
     Launch the experiment nodes, wait for a cost message, and return the total cost.
     """
     global global_cost, individual_costs
     global_cost = None
     individual_costs = None
-    ik_parent, planner_parent = launch_experiment()
+    ik_parent, planner_parent = launch_experiment(scene)
     cost_sub = rospy.Subscriber("/cost", Float32MultiArray, cost_callback)
     wait_time = 0
     while global_cost is None and wait_time < 60:
@@ -72,7 +76,7 @@ def run_experiment():
 
 if __name__ == "__main__":
     rospy.init_node("bayes_optimizer_node", anonymous=True)
-
+    scene = rospy.get_param("~scene")
     # Define a HEBO design space
     design_list = [{'name': 'detect_shell_rad', 'type': 'num', 'lb': 0.25, 'ub': 0.75}]
     for name, lb, ub in [
@@ -85,15 +89,7 @@ if __name__ == "__main__":
         for j in range(7):
             design_list.append({'name': f'{name}_{j}', 'type': 'num', 'lb': lb, 'ub': ub})
     space = DesignSpace().parse(design_list)
-    #cfg = {
-    #    "lr": 0.001,
-    #    "num_epochs": 100,
-    #    "verbose": False,
-    #    "noise_lb": 8e-4,
-    #    "pred_likeli": False,
-    #}
-    #hebo_batch = HEBO(space, model_name='gp', rand_sample=4, model_config=cfg)
-    hebo_batch = HEBO(space, model_name='svgp', rand_sample=4)  
+    hebo_batch = HEBO(space, model_name='svgp', rand_sample=4) 
     # Temporary config file path
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
     num_iterations = 25
@@ -103,9 +99,12 @@ if __name__ == "__main__":
     individual_costs_history = []
     best_cost = float('inf')
 
-    base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer"
-    results_path = os.path.join(base_path, "results/svgp")
-    figures_path = os.path.join(base_path, "figures/svgp")
+    results_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/results/svgp"
+    figures_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/svgp"
+    results_path = os.path.join(results_base_path, scene)
+    figures_path = os.path.join(figures_base_path, scene)
+    os.makedirs(results_path, exist_ok=True)
+    os.makedirs(figures_path, exist_ok=True)
 
     for i in range(num_iterations):
         rec_x = hebo_batch.suggest(n_suggestions=8)
@@ -132,11 +131,11 @@ if __name__ == "__main__":
             }
             with open(temp_yaml_file, 'w') as f:
                 yaml.dump(param_dict, f)
-            total_cost, indiv_costs = run_experiment()
+            total_cost, indiv_costs = run_experiment(scene)
             cost_list.append([total_cost])
             individual_costs_batch.append(indiv_costs)
             if total_cost < best_cost:
-                best_cost = total_cost
+                best_cost = total_cost 
                 best_params = param_dict
             costs.append(total_cost)
             individual_costs_history.append(indiv_costs)
