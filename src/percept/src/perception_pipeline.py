@@ -3,6 +3,7 @@ import numpy as np
 import cupy as cp
 
 import rospy
+import logging
 import time
 import utils.troubleshoot as troubleshoot
 
@@ -14,6 +15,17 @@ from std_msgs.msg import Float64MultiArray
 
 class PerceptionPipeline():
     def __init__(self):
+        self.logger = logging.getLogger("perception_pipeline_logger")
+        self.logger.setLevel(logging.INFO)
+        # Create a file handler
+        file_handler = logging.FileHandler("/home/geriatronics/pmaf_ws/src/dataset_generator/logs/perception_pipeline.log")
+        file_handler.setLevel(logging.INFO)
+        # Create a formatter and add it to the handler
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        # Add the handler to the logger
+        self.logger.addHandler(file_handler)
+
         self.check_cuda()
         # Create process pool for CPU-intensive tasks
         self.process_pool = ProcessPoolExecutor(max_workers=multiprocessing.cpu_count())
@@ -70,8 +82,8 @@ class PerceptionPipeline():
                 every_n_points = 3
                 pcd = pcd.uniform_down_sample(every_n_points)
     
-            if log_performance:
-                rospy.loginfo(f"PointCloud Parsing (CPU+GPU) [sec]: {time.time() - start}")
+            #if log_performance:
+            #    rospy.loginfo(f"PointCloud Parsing (CPU+GPU) [sec]: {time.time() - start}")
     
             return pcd
         except Exception as e:
@@ -100,8 +112,8 @@ class PerceptionPipeline():
             rospy.logerr("Failed to process robot body subtraction: {}".format(
                 troubleshoot.get_error_text(e, print_stack_trace=False)
             ))
-        if log_performance:
-            rospy.loginfo(f"Robot body subtraction (GPU) [sec]: {time.time() - start}")
+        #if log_performance:
+        #    rospy.loginfo(f"Robot body subtraction (GPU) [sec]: {time.time() - start}")
         return filtered_points
 
 
@@ -113,8 +125,8 @@ class PerceptionPipeline():
             min_bound=self.voxel_min_bound,
             max_bound=self.voxel_max_bound,
         )
-        if log_performance:
-            rospy.loginfo(f"Voxelization (GPU) [sec]: {time.time()-start}")
+        #if log_performance:
+        #    rospy.loginfo(f"Voxelization (GPU) [sec]: {time.time()-start}")
 
         return voxel_grid
 
@@ -144,8 +156,8 @@ class PerceptionPipeline():
         # Transfer result back to CPU
         primitives_pos = cp.asnumpy(primitives_pos_gpu)
 
-        if log_performance:
-            rospy.loginfo(f"Voxel2Primitives (CPU+GPU) [sec]: {time.time()-start}")
+        #if log_performance:
+        #    rospy.loginfo(f"Voxel2Primitives (CPU+GPU) [sec]: {time.time()-start}")
         return primitives_pos
 
 
@@ -177,8 +189,8 @@ class PerceptionPipeline():
         # Publish primitives
         self.publish_primitives(primitives_pos)
 
-
-        log_performance = False
+        log_performance = True
         if log_performance:
             rospy.loginfo(f"Perception Pipeline (CPU+GPU) [sec]: {time.time() - start}")
+            self.logger.info(f"Perception Pipeline (CPU+GPU) [sec]: {time.time() - start}")
         return primitives_pos

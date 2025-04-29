@@ -55,7 +55,7 @@ def shutdown_experiment(ik_parent, planner_parent):
     planner_parent.shutdown()
     rospy.loginfo("Experiment nodes shutdown.")
 
-def run_experiment(scene):
+def run_experiment(scene, include_in_dataset):
     """
     Launch the experiment nodes, wxyait for a cost message, and return the total cost.
     """
@@ -97,30 +97,31 @@ if __name__ == "__main__":
     # Temporary config file path
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
     #num_iterations = 9
-    num_iterations = 2
-
+    num_iterations = 7
     # Initialize cost tracking
     costs = []
     individual_costs_history = []
     best_cost = float('inf')
-
     if not include_in_dataset:
         results_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/results/svgp"
         figures_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/svgp"
         results_path = os.path.join(results_base_path, scene)
         figures_path = os.path.join(figures_base_path, scene)
-        os.makedirs(results_path, exist_ok=True)
-        os.makedirs(figures_path, exist_ok=True)
     else:
-        labels_csv = "/home/geriatronics/pmaf_ws/src/planner_optimizer/labels.csv"
-
+        figures_path = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/scene_cost_history"
+        results_path = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/opt_results"
+        labels_csv = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/labels.csv"
+    os.makedirs(results_path, exist_ok=True)
+    os.makedirs(figures_path, exist_ok=True)
+    start_time = time.time()
+    best_it = 0
+    it = 0
     for i in range(num_iterations):
-        #rec_x = hebo_batch.suggest(n_suggestions=8)
-        rec_x = hebo_batch.suggest(n_suggestions=2)
+        rec_x = hebo_batch.suggest(n_suggestions=8)
+        #rec_x = hebo_batch.suggest(n_suggestions=2)
         rospy.loginfo("Iteration {}: Suggested parameters batch:".format(i))
         cost_list = []
         individual_costs_batch = []
-
         for j in range(len(rec_x)):
             single_x = rec_x.iloc[[j]]
             rospy.loginfo("Processing suggestion {} in batch:".format(j))
@@ -140,10 +141,11 @@ if __name__ == "__main__":
             }
             with open(temp_yaml_file, 'w') as f:
                 yaml.dump(param_dict, f)
-            total_cost, indiv_costs = run_experiment(scene)
+            total_cost, indiv_costs = run_experiment(scene, include_in_dataset)
             cost_list.append([total_cost])
             individual_costs_batch.append(indiv_costs)
             if total_cost < best_cost:
+                best_it = it
                 best_cost = total_cost 
                 best_params = param_dict
             costs.append(total_cost)
@@ -156,17 +158,18 @@ if __name__ == "__main__":
                 with open(output_yaml_file, 'w') as f:
                     yaml.dump(best_params, f, default_flow_style=False)
                 rospy.loginfo(f"Best parameters and cost saved to {output_yaml_file}")
+            it += 1
         cost_array = np.array(cost_list)
         hebo_batch.observe(rec_x, cost_array)
         if not include_in_dataset:
             # Save the global cost evolution plot
-            global_cost_plot_path = os.path.join(figures_path, "cost_evolution.png")
+            cost_plot_path = os.path.join(figures_path, "cost_evolution.png")
             plt.figure(figsize=(8, 6))
             plt.plot(costs, 'x-')
             plt.xlabel("Iterations")
-            plt.ylabel("Global Cost")
-            plt.title("Global Cost Evolution - GP HEBO")
-            plt.savefig(global_cost_plot_path)
+            plt.ylabel("Cost")
+            plt.title("Cost Evolution")
+            plt.savefig(cost_plot_path)
             plt.close()
             # Save the individual cost components evolution plot
             individual_costs_plot_path = os.path.join(figures_path, "individual_costs_evolution.png")
@@ -176,15 +179,19 @@ if __name__ == "__main__":
                 plt.plot(individual_costs_array[:, idx], label=label)
             plt.xlabel("Iterations")
             plt.ylabel("Individual Costs")
-            plt.title("Individual Costs Evolution - GP HEBO")
+            plt.title("Individual Costs Evolution")
             plt.legend()
             plt.savefig(individual_costs_plot_path)
             plt.close()
+    end_time = time.time()
     if include_in_dataset:
-        # Prepare path to your CSV file
-        labels_csv = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/labels.csv"
+        scene_file_path = os.path.join(results_path, scene + ".yaml")
+        best_params['optimization_time_min'] = (end_time - start_time)/60  
+        best_params['best_params_found_in_it'] = best_it         
+        with open(scene_file_path, 'w') as f:
+            yaml.dump(best_params, f, default_flow_style=False)
+        rospy.loginfo(f"Parameters for scene '{scene}' saved to {scene_file_path}")
         # Flatten best_params into a single list of values in the desired order
-        # Assumes best_params was last updated in the loop
         header = [
             "scene",
             "detect_shell_rad",
@@ -208,7 +215,7 @@ if __name__ == "__main__":
         ]
         # Extend with each vector’s entries
         for name in ("k_a_ee", "k_c_ee", "k_r_ee", "k_d_ee", "k_manip"):
-            vals = best_params[name]  # this is a list of length 7
+            vals = best_params[name]  # this is a list  of length 7
             row.extend(vals)
         # If file doesn’t exist or is empty, write header first
         write_header = not os.path.isfile(labels_csv) or os.path.getsize(labels_csv) == 0
@@ -218,5 +225,12 @@ if __name__ == "__main__":
                 writer.writerow(header)
             writer.writerow(row)
         rospy.loginfo(f"Appended best params for scene '{scene}' to {labels_csv}")
+        cost_plots_path = os.path.join(figures_path, scene + ".png")
+        plt.plot(costs, 'x-')
+        plt.xlabel("Iterations")
+        plt.ylabel("Cost")
+        plt.title("Cost Evolution")
+        plt.savefig(cost_plots_path)
+        plt.close()
     
 

@@ -14,11 +14,11 @@ def launch_optimizer(scene):
     depth2ptcloud_launch_file = "/home/geriatronics/pmaf_ws/src/percept/launch/depth_to_ptcloud.launch"
     depth2ptcloud_parent = roslaunch.parent.ROSLaunchParent(uuid, [depth2ptcloud_launch_file])
     depth2ptcloud_parent.start()
-    time.sleep(5)  
+    time.sleep(2)  
     sim_static_launch_file = "/home/geriatronics/pmaf_ws/src/percept/launch/sim_static.launch"
     sim_static_parent = roslaunch.parent.ROSLaunchParent(uuid, [sim_static_launch_file])
     sim_static_parent.start()
-    time.sleep(5)
+    time.sleep(2)
     rospy.loginfo("Perception nodes started.")
     opt_launch_file = '/home/geriatronics/pmaf_ws/src/planner_optimizer/launch/bayesian_optimizer.launch'
     opt_args = ['scene:=' + scene, 'include_in_dataset:=true']
@@ -39,6 +39,7 @@ def launch_optimizer(scene):
 
 if __name__ == '__main__':
     rospy.init_node('dataset_generator_node', anonymous=True)
+    first_scene = rospy.get_param('~first_scene', 0)
     # Path to your scene YAMLs
     config_dir = '/home/geriatronics/pmaf_ws/src/dataset_generator/data/scene_configs'
     if not os.path.isdir(config_dir):
@@ -54,6 +55,8 @@ if __name__ == '__main__':
         (f for f in os.listdir(config_dir) if f.endswith('.yaml')),
         key=lambda x: int(re.search(r'\d+', x).group())
     )
+    # start processing from the first_scene index
+    scene_files = scene_files[first_scene:]
     if not scene_files:
         rospy.logwarn("No scene .yaml files found; nothing to do.")
         sys.exit(0)
@@ -66,4 +69,5 @@ if __name__ == '__main__':
             rospy.logerr(f"Failed on scene '{scene_name}': {e}")
             break
         time.sleep(1)
+        rospy.loginfo(f"[dataset_generator] Finished scene '{scene_name}'")
     rospy.loginfo("[dataset_generator] All scenes processed. Exiting.")

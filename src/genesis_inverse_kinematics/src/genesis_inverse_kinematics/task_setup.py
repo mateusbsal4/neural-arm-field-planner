@@ -145,10 +145,6 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
                                    desk_center_default[2] + desk_thickness/2 + box_edge/2)
     cracker_box_center_default = (0.05, desk_center_default[1], desk_center_default[2] + desk_thickness/2)
     goal_pos_default = [cube_center_default[0], cube_center_default[1], cube_center_default[2]]
-    # Optional flags
-    add_boxes = False
-    add_second_desk = False
-    add_second_pillar = False
     # Assign positions
     if not randomize:
         # Save YAML config
@@ -166,8 +162,8 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
         }
     else:
         #n_floating_primitives = 6    
-        #add_boxes = np.random.randn() > 0.5
-        add_boxes = False
+        add_boxes = np.random.randn() > 0.5
+        #add_boxes = False
         #add_second_desk = np.random.randn() > 0.5
         add_second_desk = False     
         #add_second_pillar = np.random.randn() > 0.5  

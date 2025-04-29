@@ -32,7 +32,7 @@ class PerceptionNode:
     def run_pipeline(self, pointcloud_buffer, tfs):
         try:
             primitives_pos_result = self.pipeline.run_pipeline(
-                pointcloud_buffer, tfs)  
+                pointcloud_buffer, tfs, True)  
             #print("primitives_pos_result", primitives_pos_result)   
             primitives_pos_msg = self.make_pointcloud_msg(primitives_pos_result)
             
