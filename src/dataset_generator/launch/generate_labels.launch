@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="dataset_generator"
+        type="generate_labels.py"
+        name="generate_labels"
+        output="screen" />
+</launch>

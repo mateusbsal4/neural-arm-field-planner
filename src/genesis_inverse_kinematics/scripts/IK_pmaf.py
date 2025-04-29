@@ -9,9 +9,10 @@ from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import Float32, Float32MultiArray, Float64MultiArray
 from genesis_inverse_kinematics.evaluate_path import compute_cost
-from genesis_inverse_kinematics.task_setup import setup_task, recreate_task     
+from genesis_inverse_kinematics.task_setup import create_scene, recreate_task     
 from genesis_inverse_kinematics.static_transform_publisher import publish_transforms
 from genesis_inverse_kinematics.perception_utils import create_depth_image_msg, create_camera_info_msg
+import os
 
 
 class IK_Controller:
@@ -24,7 +25,8 @@ class IK_Controller:
         self.scene_config = rospy.get_param("~scene")  # Default to "base_scene.yaml"
         self.recreate = rospy.get_param("~recreate")  # Default to False
         self.evaluate = rospy.get_param("~evaluate", False)  # Default to False
-        self.bo = rospy.get_param("~bo", False)  # Default to False
+        self.bo = rospy.get_param("~bo") 
+        self.dataset_scene = rospy.get_param("~dataset_scene", False)  # Default to False
         self.start_pos_pub = rospy.Publisher("start_position", Point, queue_size=1)
         self.goal_pos_pub = rospy.Publisher("goal_position", Point, queue_size=1)
         self.current_pos_pub = rospy.Publisher("current_position", Point, queue_size=1) 
@@ -40,9 +42,10 @@ class IK_Controller:
         gs.init(backend=gs.gpu)
         # Setup the task
         if self.recreate:    #recreate a specific scene
-            self.scene, self.franka, self.cam, self.target_pos = recreate_task(self.scene_config + ".yaml")
+            print("Recreating scene from file: ", self.scene_config)
+            self.scene, self.franka, self.cam, self.target_pos = recreate_task(self.scene_config + ".yaml", from_dataset = self.dataset_scene)
         else:           #setup a new random scene
-            self.scene, self.franka, self.cam, self.target_pos = setup_task(randomize = True)
+            self.scene, self.franka, self.cam, self.target_pos = create_scene(randomize = True)
         goal_pos_TCP = self.target_pos.copy()               #TCP position - midpoint of the two gripper fingers
         self.goal_pos = np.array([goal_pos_TCP[0], goal_pos_TCP[1], goal_pos_TCP[2] + 0.10365])  # Gripper base position - 0.1m above the TCP position
         # Build the scene
@@ -230,8 +233,11 @@ class IK_Controller:
                     # Append cost to a file and stop recording if evaluating
                     if self.evaluate:
                         # Determine paths based on whether Bayesian Optimization (BO) is enabled
-                        base_path = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/eval_costs"
+                        base_path = f"/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/eval_costs/{self.scene_config}"
                         subfolder = "optimal" if self.bo else "predefined"
+                        full_path = os.path.join(base_path, subfolder)
+                        # Ensure the full directory path exists
+                        os.makedirs(full_path, exist_ok=True)
                         cost_log_path = f"{base_path}/{subfolder}/cost_log.txt"
                         video_path = f"{base_path}/{subfolder}/video.mp4"
                         cost = np.sum(costs)  # Sum the individual costs

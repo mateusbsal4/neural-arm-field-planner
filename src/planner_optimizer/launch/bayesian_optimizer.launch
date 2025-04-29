@@ -1,6 +1,8 @@
 <launch>
   <arg name="scene" default="base_scene" /> 
+  <arg name="include_in_dataset" default="false" />
   <node pkg="planner_optimizer" type="bayesian_optimizer.py" name="bayesian_optimizer" output="screen">
     <param name="scene" value="$(arg scene)" />
+    <param name="include_in_dataset" value="$(arg include_in_dataset)" />
   </node>
 </launch>

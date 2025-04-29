@@ -32,7 +32,7 @@ def create_cylinder(scene, pose, radius, height):
         surface=gs.surfaces.Metal(color=(0.5,0.5,0.5,1))
     )
 
-def create_scene(config):
+def create_scene_from_config(config):
     """
     Populate the given Genesis `scene` with all environment entities described in `config`.
     Does not add the robot or camera.
@@ -110,13 +110,18 @@ def create_scene(config):
     )
     return scene, franka, cam
 
-def setup_task(randomize=False, config_filename=None):
+def create_scene(randomize=False, config_filename=None):
+    cfg, goal_pos = setup_task(randomize=randomize, config_filename=config_filename)
+    scene, franka, cam = create_scene_from_config(cfg)
+    return scene, franka, cam, goal_pos
+
+def setup_task(randomize=False, config_filename=None, include_in_dataset=False, n_floating_primitives=5):
     """
     Initialize office scene. Randomize placement if requested.
     Returns: scene, franka, cam, goal_pos
     """
     # Prepare config path
-    base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene"
+    base_dir = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/scene_configs" if include_in_dataset else "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene"
     os.makedirs(base_dir, exist_ok=True)
     if config_filename is None:
         idx = 1
@@ -160,7 +165,7 @@ def setup_task(randomize=False, config_filename=None):
             'goal_pos': goal_pos
         }
     else:
-        n_floating_primitives = 6    
+        #n_floating_primitives = 6    
         #add_boxes = np.random.randn() > 0.5
         add_boxes = False
         #add_second_desk = np.random.randn() > 0.5
@@ -274,15 +279,14 @@ def setup_task(randomize=False, config_filename=None):
             config['pillar2_center'] = pillar2_center
     with open(config_path, 'w') as f:
         yaml.safe_dump(config, f)
-    # Build environment
-    scene, franka, cam = create_scene(config)
-    return scene, franka, cam, goal_pos
+    return config, goal_pos
 
-def recreate_task(config_filename):
+
+def recreate_task(config_filename, from_dataset=False):
     """
     Recreate scene from existing YAML config.
     """
-    base_dir = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene"
+    base_dir = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/scene_configs" if from_dataset else "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/scene"
     os.makedirs(base_dir, exist_ok=True)
     config_filename = os.path.join(base_dir, config_filename)
     print("Loading config from", config_filename)
@@ -290,6 +294,6 @@ def recreate_task(config_filename):
         cfg = yaml.safe_load(f)
     print("cfg", cfg)
     # Build environment
-    scene, franka, cam = create_scene(cfg)
+    scene, franka, cam = create_scene_from_config(cfg)
     goal = list(cfg['goal_pos'])
     return scene, franka, cam, goal

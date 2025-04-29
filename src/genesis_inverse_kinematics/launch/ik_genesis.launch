@@ -1,13 +1,15 @@
 <launch>
   <!-- Define arguments with default values -->
   <arg name="evaluate" default="false" />
-  <arg name="bo" default="false" />
+  <arg name="bo" default="true" />
   <arg name="recreate" default="true" />
   <arg name="scene" default="base_scene" />
+  <arg name="dataset_scene" default="false" />
   <!-- Pass the arguments to the node -->
   <node pkg="genesis_inverse_kinematics" type="IK_pmaf.py" name="ik_genesis_node" output="screen">
     <param name="recreate" value="$(arg recreate)" />
     <param name="scene" value="$(arg scene)" />
+    <param name="dataset_scene" value="$(arg dataset_scene)" />
     <param name="evaluate" value="$(arg evaluate)" />
     <param name="bo" value="$(arg bo)" />
   </node>

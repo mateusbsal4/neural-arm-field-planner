@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sys
+import csv
 from std_msgs.msg import Float32MultiArray
 
 sys.path.append("/home/geriatronics/miniconda3/envs/ros_perception/lib/python3.9/site-packages")
@@ -26,7 +27,7 @@ def cost_callback(msg):
     individual_costs = msg.data  # Store the list of costs
     global_cost = sum(individual_costs)  # Compute the total cost as the sum of individual costs
 
-def launch_experiment(scene):
+def launch_experiment(scene, include_in_dataset):
     """
     Launch the IK_pmaf node and the planner node using their launch files.
     """
@@ -35,7 +36,7 @@ def launch_experiment(scene):
 
     # Launch IK node with the scene parameter
     ik_launch_file = "/home/geriatronics/pmaf_ws/src/genesis_inverse_kinematics/launch/ik_genesis.launch"
-    ik_args = [f"scene:={scene}"]  # Pass the scene argument dynamically
+    ik_args = [f"scene:={scene}", f"dataset_scene:={'true' if include_in_dataset else 'false'}"]  # Convert boolean to string
     ik_parent = roslaunch.parent.ROSLaunchParent(uuid, [(ik_launch_file, ik_args)])
     ik_parent.start()
     rospy.loginfo(f"IK node launched with scene: {scene}")
@@ -46,7 +47,7 @@ def launch_experiment(scene):
     planner_parent = roslaunch.parent.ROSLaunchParent(uuid, [planner_launch_file])
     planner_parent.start()
     rospy.loginfo("Planner node launched.")
-
+    #time.sleep(10)  # Wait to ensure the planner node is running
     return ik_parent, planner_parent
 
 def shutdown_experiment(ik_parent, planner_parent):
@@ -56,17 +57,19 @@ def shutdown_experiment(ik_parent, planner_parent):
 
 def run_experiment(scene):
     """
-    Launch the experiment nodes, wait for a cost message, and return the total cost.
+    Launch the experiment nodes, wxyait for a cost message, and return the total cost.
     """
     global global_cost, individual_costs
     global_cost = None
     individual_costs = None
-    ik_parent, planner_parent = launch_experiment(scene)
+    ik_parent, planner_parent = launch_experiment(scene, include_in_dataset)
     cost_sub = rospy.Subscriber("/cost", Float32MultiArray, cost_callback)
     wait_time = 0
-    while global_cost is None and wait_time < 60:
+    print("Ik called")
+    while global_cost is None:
         time.sleep(1)
         wait_time += 1
+    
     total_cost = global_cost
     rospy.loginfo("Obtained total cost: {:.2f}".format(total_cost))
     rospy.loginfo("Individual costs: {}".format(individual_costs))
@@ -77,6 +80,7 @@ def run_experiment(scene):
 if __name__ == "__main__":
     rospy.init_node("bayes_optimizer_node", anonymous=True)
     scene = rospy.get_param("~scene")
+    include_in_dataset = rospy.get_param("~include_in_dataset", False)
     # Define a HEBO design space
     design_list = [{'name': 'detect_shell_rad', 'type': 'num', 'lb': 0.25, 'ub': 0.75}]
     for name, lb, ub in [
@@ -92,22 +96,27 @@ if __name__ == "__main__":
     hebo_batch = HEBO(space, model_name='svgp', rand_sample=4) 
     # Temporary config file path
     temp_yaml_file = "/home/geriatronics/pmaf_ws/src/multi_agent_vector_fields/config/agent_parameters_temp.yaml"
-    num_iterations = 25
+    #num_iterations = 9
+    num_iterations = 2
 
     # Initialize cost tracking
     costs = []
     individual_costs_history = []
     best_cost = float('inf')
 
-    results_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/results/svgp"
-    figures_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/svgp"
-    results_path = os.path.join(results_base_path, scene)
-    figures_path = os.path.join(figures_base_path, scene)
-    os.makedirs(results_path, exist_ok=True)
-    os.makedirs(figures_path, exist_ok=True)
+    if not include_in_dataset:
+        results_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/results/svgp"
+        figures_base_path = "/home/geriatronics/pmaf_ws/src/planner_optimizer/figures/svgp"
+        results_path = os.path.join(results_base_path, scene)
+        figures_path = os.path.join(figures_base_path, scene)
+        os.makedirs(results_path, exist_ok=True)
+        os.makedirs(figures_path, exist_ok=True)
+    else:
+        labels_csv = "/home/geriatronics/pmaf_ws/src/planner_optimizer/labels.csv"
 
     for i in range(num_iterations):
-        rec_x = hebo_batch.suggest(n_suggestions=8)
+        #rec_x = hebo_batch.suggest(n_suggestions=8)
+        rec_x = hebo_batch.suggest(n_suggestions=2)
         rospy.loginfo("Iteration {}: Suggested parameters batch:".format(i))
         cost_list = []
         individual_costs_batch = []
@@ -139,33 +148,75 @@ if __name__ == "__main__":
                 best_params = param_dict
             costs.append(total_cost)
             individual_costs_history.append(indiv_costs)
-                # Save the best-found parameters and cost to a YAML file
-            output_yaml_file = os.path.join(results_path, "best_parameters.yaml")
+            # Save the best-found parameters and cost to a YAML file
+            if not include_in_dataset:
+                output_yaml_file = os.path.join(results_path, "best_parameters.yaml")
             best_params['best_cost'] = best_cost
-            with open(output_yaml_file, 'w') as f:
-                yaml.dump(best_params, f, default_flow_style=False)
-            rospy.loginfo(f"Best parameters and cost saved to {output_yaml_file}")
+            if not include_in_dataset:
+                with open(output_yaml_file, 'w') as f:
+                    yaml.dump(best_params, f, default_flow_style=False)
+                rospy.loginfo(f"Best parameters and cost saved to {output_yaml_file}")
         cost_array = np.array(cost_list)
         hebo_batch.observe(rec_x, cost_array)
-        # Save the global cost evolution plot
-        global_cost_plot_path = os.path.join(figures_path, "cost_evolution.png")
-        plt.figure(figsize=(8, 6))
-        plt.plot(costs, 'x-')
-        plt.xlabel("Iterations")
-        plt.ylabel("Global Cost")
-        plt.title("Global Cost Evolution - GP HEBO")
-        plt.savefig(global_cost_plot_path)
-        plt.close()
-        # Save the individual cost components evolution plot
-        individual_costs_plot_path = os.path.join(figures_path, "individual_costs_evolution.png")
-        plt.figure(figsize=(8, 6))
-        individual_costs_array = np.array(individual_costs_history)
-        for idx, label in enumerate(["C_cl", "C_pl", "C_sm", "C_gd"]):
-            plt.plot(individual_costs_array[:, idx], label=label)
-        plt.xlabel("Iterations")
-        plt.ylabel("Individual Costs")
-        plt.title("Individual Costs Evolution - GP HEBO")
-        plt.legend()
-        plt.savefig(individual_costs_plot_path)
-        plt.close()
+        if not include_in_dataset:
+            # Save the global cost evolution plot
+            global_cost_plot_path = os.path.join(figures_path, "cost_evolution.png")
+            plt.figure(figsize=(8, 6))
+            plt.plot(costs, 'x-')
+            plt.xlabel("Iterations")
+            plt.ylabel("Global Cost")
+            plt.title("Global Cost Evolution - GP HEBO")
+            plt.savefig(global_cost_plot_path)
+            plt.close()
+            # Save the individual cost components evolution plot
+            individual_costs_plot_path = os.path.join(figures_path, "individual_costs_evolution.png")
+            plt.figure(figsize=(8, 6))
+            individual_costs_array = np.array(individual_costs_history)
+            for idx, label in enumerate(["C_cl", "C_pl", "C_sm", "C_gd"]):
+                plt.plot(individual_costs_array[:, idx], label=label)
+            plt.xlabel("Iterations")
+            plt.ylabel("Individual Costs")
+            plt.title("Individual Costs Evolution - GP HEBO")
+            plt.legend()
+            plt.savefig(individual_costs_plot_path)
+            plt.close()
+    if include_in_dataset:
+        # Prepare path to your CSV file
+        labels_csv = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/labels.csv"
+        # Flatten best_params into a single list of values in the desired order
+        # Assumes best_params was last updated in the loop
+        header = [
+            "scene",
+            "detect_shell_rad",
+            "agent_mass",
+            "agent_radius",
+            "velocity_max",
+            "approach_dist",
+        ]
+        # Now add the seven entries for each k_* vector in order
+        for name in ("k_a_ee", "k_c_ee", "k_r_ee", "k_d_ee", "k_manip"):
+            for idx in range(1, 8):
+                header.append(f"{name}_{idx}")
+        # Build the row
+        row = [
+            scene,
+            best_params["detect_shell_rad"],
+            best_params.get("agent_mass", 1.0),
+            best_params.get("agent_radius", 0.2),
+            best_params.get("velocity_max", 0.5),
+            best_params.get("approach_dist", 0.25),
+        ]
+        # Extend with each vector’s entries
+        for name in ("k_a_ee", "k_c_ee", "k_r_ee", "k_d_ee", "k_manip"):
+            vals = best_params[name]  # this is a list of length 7
+            row.extend(vals)
+        # If file doesn’t exist or is empty, write header first
+        write_header = not os.path.isfile(labels_csv) or os.path.getsize(labels_csv) == 0
+        with open(labels_csv, "a", newline="") as f:
+            writer = csv.writer(f)
+            if write_header:
+                writer.writerow(header)
+            writer.writerow(row)
+        rospy.loginfo(f"Appended best params for scene '{scene}' to {labels_csv}")
+    
 
