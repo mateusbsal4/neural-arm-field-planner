@@ -26,7 +26,7 @@ class PerceptionNode:
         self.buffer_lock = threading.Lock()
 
         # Publisher for results
-        self.primitives_publisher = rospy.Publisher('/primitives', PointCloud2, queue_size=10)
+        self.primitives_publisher = rospy.Publisher('primitives', PointCloud2, queue_size=10)
 
 
     def run_pipeline(self, pointcloud_buffer, tfs):
