@@ -59,6 +59,8 @@ class SimPerceptionPipeline(PerceptionPipeline):
 class SimPerceptionNode(PerceptionNode):
     def __init__(self):
         rospy.init_node('sim_perception_node')
+        self.save_cloud = rospy.get_param("~save_cloud")
+        self.scene = rospy.get_param("~scene")
         super().__init__()
         
         # Initialize pipeline

@@ -30,6 +30,7 @@ class IK_Controller:
         self.dataset_scene = rospy.get_param("~dataset_scene", False)  # Default to False
         self.start_pos_pub = rospy.Publisher("start_position", Point, queue_size=1)
         self.goal_pos_pub = rospy.Publisher("goal_position", Point, queue_size=1)
+        self.tcp_pos_pub = rospy.Publisher("tcp_pos", Point, queue_size=1)
         self.current_pos_pub = rospy.Publisher("current_position", Point, queue_size=1) 
         self.target_pos_sub = rospy.Subscriber("agent_position", Point, self.target_pos_callback)
         self.depth_image_pub = rospy.Publisher('camera/depth/image_rect_raw', Image, queue_size=1)
@@ -89,6 +90,7 @@ class IK_Controller:
         self.goal_pos_msg.y = self.goal_pos[1]
         self.goal_pos_msg.z = self.goal_pos[2]
         self.goal_pos_pub.publish(self.goal_pos_msg)
+        
         # Render the depth image of the scene
         _, self.depth_img, _, _ = self.cam.render(depth=True, segmentation=True, normal=True)  
         # Draw goal position for the hand and TCP frames
@@ -211,6 +213,14 @@ class IK_Controller:
                 current_pos_msg.y = ee_pos[1]
                 current_pos_msg.z = ee_pos[2]
                 self.current_pos_pub.publish(current_pos_msg)
+
+                #Publish the TCP pos 
+                tcp_pos_msg = Point()
+                tcp_pos_msg.x = TCP_pos[0]
+                tcp_pos_msg.y = TCP_pos[1]
+                tcp_pos_msg.z = TCP_pos[2]
+                self.tcp_pos_pub.publish(tcp_pos_msg)
+
 
                 self.TCP_path.append(ee_pos)
                 self.prev_eepos = ee_pos
