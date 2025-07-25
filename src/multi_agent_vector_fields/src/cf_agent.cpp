@@ -346,6 +346,7 @@ void CfAgent::cfPlanner(const std::vector<Eigen::Vector3d> &manip_map,
                         const double k_repel, const double k_damp,
                         const double k_manip, const double delta_t,
                         const int steps) {
+  printf("Distance from goal in cfPlanner: %f\n", getDistFromGoal());
   for (size_t i = 0; i < steps; ++i) 
   {
     resetForce();
@@ -360,8 +361,8 @@ void CfAgent::cfPlanner(const std::vector<Eigen::Vector3d> &manip_map,
     }
     repelForce(obstacles, k_repel);
     attractorForce(k_attr, k_damp, k_goal_scale);
-    ROS_INFO("Agent force: [%.2f, %.2f, %.2f]", force_.x(), force_.y(), force_.z());
-    ROS_INFO("Agent velocity: [%.2f, %.2f, %.2f]", vel_.x(), vel_.y(), vel_.z());
+    //ROS_INFO("Agent force: [%.2f, %.2f, %.2f]", force_.x(), force_.y(), force_.z());
+    //ROS_INFO("Agent velocity: [%.2f, %.2f, %.2f]", vel_.x(), vel_.y(), vel_.z());
     updatePositionAndVelocity(delta_t);
 
   }
@@ -372,11 +373,15 @@ void CfAgent::cfPrediction(const std::vector<Eigen::Vector3d> &manip_map,
                            const double k_repel, const double k_damp,
                            const double k_manip, const double delta_t,
                            const size_t max_prediction_steps) {
-  while (!finished_) {
+  printf("Mx pred steps %lu: \n", max_prediction_steps);
+  while (!finished_  && getDistFromGoal() > 0.01) {
     std::chrono::steady_clock::time_point begin_prediction =
         std::chrono::steady_clock::now();
-    while (run_prediction_ && getDistFromGoal() > 0.1 &&
-           pos_.size() < max_prediction_steps) {
+    //printf("Distance from goal in cfPrediction: %f\n", getDistFromGoal());
+    //printf("Approach distance: %f\n", approach_dist_);
+    while (run_prediction_ && getDistFromGoal() > 0.01){ 
+    //while (run_prediction_ && getDistFromGoal() > 0.05 &&
+    //       pos_.size() < max_prediction_steps) {
       running_ = true;
       resetForce();
       double k_goal_scale = 1.0;
@@ -396,7 +401,7 @@ void CfAgent::cfPrediction(const std::vector<Eigen::Vector3d> &manip_map,
     auto end_prediction = std::chrono::steady_clock::now();
     if (running_) {
       prediction_time_ = (end_prediction - begin_prediction).count();
-      if (getDistFromGoal() < 0.100001) {
+      if (getDistFromGoal() < 0.01) {
         reached_goal_ = true;
       } else {
         reached_goal_ = false;

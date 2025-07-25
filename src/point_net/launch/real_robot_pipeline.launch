@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="point_net" type="real_robot_pipeline.py" name="real_robot_pipeline" output="screen">
+    <param name="scene_name" value="real_robot_scene" />
+  </node>
+</launch>

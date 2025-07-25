@@ -1,0 +1,9 @@
+<launch>
+  <!-- Argument for output file -->
+  <arg name="output_file" default="/home/geriatronics/pmaf_ws/src/apriltag_ros/tf_homogeneous.yaml" />
+
+  <!-- Node to save tf as homogeneous matrices -->
+  <node pkg="apriltag_ros" type="save_tf_homogeneous.py" name="save_tf_homogeneous" output="screen">
+    <param name="output_file" value="$(arg output_file)" />
+  </node>
+</launch>

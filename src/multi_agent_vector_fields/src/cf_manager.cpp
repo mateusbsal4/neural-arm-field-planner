@@ -301,7 +301,8 @@ void CfManager::moveRealEEAgent(const vector<Obstacle> &obstacles,
 void CfManager::moveAgent(const vector<Obstacle> &obstacles,
                           const double delta_t, const int steps, const int id) 
 {
-  while (run_prediction_ && ee_agents_[id]->getDistFromGoal() > 0.05) 
+  //std::cout << "Goal distance: " << ee_agents_[id]->getDistFromGoal() << std::endl;
+  while (run_prediction_ && ee_agents_[id]->getDistFromGoal() > 0.001) 
   {
     ee_agents_[id]->cfPlanner(manip_map_, obstacles, k_a_ee_[id], k_c_ee_[id],
                               k_r_ee_[id], k_d_ee_[id], k_manip_[id], delta_t,
@@ -381,6 +382,7 @@ int CfManager::evaluateAgents(const vector<Obstacle> &obstacles,
       }
     }
     double goal_dist = agent->getDistFromGoal();
+    //std::cout << "Goal distance: " << goal_dist << std::endl;
     if (goal_dist > approach_dist_) 
     {
       cost += goal_dist * k_goal_dist;

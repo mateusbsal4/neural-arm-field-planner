@@ -24,10 +24,13 @@ def launch_scene(scene, global_idx):
 
     perception_args = [f"ns:={ns}"]
     depth_parent = roslaunch.parent.ROSLaunchParent(uuid_n, [(DEPTH2PTCLOUD_LAUNCH, perception_args)])
-    depth_parent.start(); time.sleep(2)
+    depth_parent.start()
+    time.sleep(2)
 
-    sim_parent   = roslaunch.parent.ROSLaunchParent(uuid_n, [(SIM_STATIC_LAUNCH, perception_args)])
-    sim_parent.start();   time.sleep(2)
+    sim_args = [f"ns:={ns}", f"save_cloud:=false", f"scene:={scene}"]
+    sim_parent = roslaunch.parent.ROSLaunchParent(uuid_n, [(SIM_STATIC_LAUNCH, sim_args)])
+    sim_parent.start()
+    time.sleep(2)
 
     rospy.loginfo(f"[Scene {scene}] Perception up in ns={ns}")
 

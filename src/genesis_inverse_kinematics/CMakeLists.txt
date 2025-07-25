@@ -19,6 +19,7 @@ catkin_python_setup()
 catkin_install_python(PROGRAMS
   scripts/IK_pmaf.py
   scripts/multilink_IK_pmaf.py
+  scripts/robot_controller.py
   src/genesis_inverse_kinematics/task_setup.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

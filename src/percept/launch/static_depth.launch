@@ -1,0 +1,3 @@
+<launch>
+  <node name="static_depth_publisher" pkg="percept" type="static_depth_publisher.py" output="screen" />
+</launch>

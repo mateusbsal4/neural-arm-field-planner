@@ -61,7 +61,7 @@ def run_inference(scene_name, device="cpu"):
         "agent_mass": 1.0,  
         "agent_radius": 0.2, 
         "velocity_max": 0.5, 
-        "approach_dist": 0.25,  
+        "approach_dist": 0.025,  
         "k_a_ee": gains[1:8],
         "k_c_ee": gains[8:15],
         "k_r_ee": gains[15:22],

@@ -1,0 +1,15 @@
+<launch>
+  <arg name="ns" default="" />
+  <group ns="$(arg ns)">
+    <node pkg="nodelet" type="nodelet" name="standalone_nodelet" args="manager" output="screen">
+      <param name="ns" value="$(arg ns)" />
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="point_cloud_xyz" args="load depth_image_proc/point_cloud_xyz standalone_nodelet">
+      <remap from="/camera/depth/camera_info" to="camera/depth/camera_info_static"/>
+      <remap from="image_rect" to="camera/depth/image_static"/>
+      <remap from="points" to="camera/depth/points"/>
+      <param name="ns" value="$(arg ns)" />
+    </node>
+  </group>
+</launch>

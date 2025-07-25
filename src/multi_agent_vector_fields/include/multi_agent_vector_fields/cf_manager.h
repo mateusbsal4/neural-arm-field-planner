@@ -47,7 +47,7 @@ class CfManager {
           const Eigen::Quaterniond& start_orientation,
           const Eigen::Quaterniond& goal_orientation,
           const double velocity_max = 0.5, 
-          const double detect_shell_rad = 0.8,
+          const double detect_shell_rad = 0.25,
           const double agent_mass = 1.0, 
           const double radius = 0.01,
           const double approach_dist = 0.25, 

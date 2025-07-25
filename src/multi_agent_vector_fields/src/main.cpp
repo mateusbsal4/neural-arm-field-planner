@@ -10,6 +10,7 @@
 #include "multi_agent_vector_fields/cf_manager.h"
 #include "multi_agent_vector_fields/obstacle.h"
 #include <cassert> 
+#include <chrono>
 
 using namespace ghostplanner::cfplanner;
 Eigen::Vector3d start_pos, goal_pos, current_pos;
@@ -116,7 +117,7 @@ void readAgentParameters(const YAML::Node& node, double& detect_shell_rad, doubl
     agent_mass = node["agent_mass"].as<double>();
     agent_radius = node["agent_radius"].as<double>();
     velocity_max = node["velocity_max"].as<double>();
-    approach_dist = node["approach_dist"].as<double>();
+    approach_dist = 0.15;
     k_a_ee = node["k_a_ee"].as<std::vector<double>>();
     k_c_ee = node["k_c_ee"].as<std::vector<double>>();
     k_r_ee = node["k_r_ee"].as<std::vector<double>>();
@@ -132,11 +133,12 @@ void startPosCallback(const geometry_msgs::Point& msg) {
 
 void goalPosCallback(const geometry_msgs::Point& msg) {
     //ROS_INFO("Received goal position: [%.2f, %.2f, %.2f]", msg.x, msg.y, msg.z);
+
     goal_pos << msg.x, msg.y, msg.z;
 }
 
 void currentPosCallback(const geometry_msgs::Point& msg) {
-    //ROS_INFO("Received goal position: [%.2f, %.2f, %.2f]", msg.x, msg.y, msg.z);
+    //ROS_INFO("Received current position: [%.2f, %.2f, %.2f]", msg.x, msg.y, msg.z);
     current_pos << msg.x, msg.y, msg.z;
 }
 
@@ -161,10 +163,11 @@ void voxelGridCallback(const std_msgs::Float64MultiArray::ConstPtr& msg)
         Eigen::Vector3d pos(x, y, z);
         obstacles.emplace_back(name, pos, vel, radius, false, 0.0);
     }
-    
     //ROS_INFO("Received %lu obstacles from perception.", obstacles.size());
     obstacles_received = true;
 }
+
+bool more_planning_its = false;
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "cf_agent_demo");
@@ -173,10 +176,10 @@ int main(int argc, char** argv) {
     ROS_INFO("CF_ANGENTS_MANAGER_DEMO");
 
     ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 10);
-    ros::Publisher pos_pub = nh.advertise<geometry_msgs::Point>("agent_position", 10);
+    ros::Publisher pos_pub = nh.advertise<geometry_msgs::Point>("agent_position", 100);
     ros::Publisher dist_pub = nh.advertise<std_msgs::Float64>("distance_to_goal", 10);
     ros::Publisher twist_pub = nh.advertise<geometry_msgs::TwistStamped>("agent_twist", 10); 
-    ros::Subscriber goal_pos_sub = nh.subscribe("goal_position", 1, &goalPosCallback);
+    ros::Subscriber goal_pos_sub = nh.subscribe("goal_position", 1, &goalPosCallback);  
     ros::Subscriber start_pos_sub = nh.subscribe("start_position", 1, &startPosCallback);
     ros::Subscriber current_pos_sub = nh.subscribe("current_position", 1, &currentPosCallback);
     ros::Subscriber voxel_grid_sub = nh.subscribe("scene_voxels", 1, &voxelGridCallback);
@@ -188,12 +191,14 @@ int main(int argc, char** argv) {
     //YAML::Node obstacles_yaml = YAML::LoadFile(package_path + "/config/obstacles_1.yaml");
     YAML::Node agent_parameters = YAML::LoadFile(package_path + "/config/agent_parameters_temp.yaml");
 
+    printf("Reaching here\n");
     //Eigen::Vector3d start_pos = readVector3d(start_goal["start_pos"]);
     //Eigen::Vector3d goal_pos = readVector3d(start_goal["goal_pos"]);
     while (ros::ok() && (start_pos.isZero() || goal_pos.isZero() || !obstacles_received)) {
         ros::spinOnce();
         ros::Duration(0.1).sleep();
     }   
+    printf("Reaching here 2\n");
     Eigen::Quaterniond start_orientation = readQuaternion(start_goal["start_orientation"]);
     Eigen::Quaterniond goal_orientation = readQuaternion(start_goal["goal_orientation"]);
     //ROS_INFO("Start position: [%.2f, %.2f, %.2f]", start_pos.x(), start_pos.y(), start_pos.z());
@@ -203,11 +208,11 @@ int main(int argc, char** argv) {
 
 
     //std::vector<Obstacle> obstacles = readObstacles(obstacles_yaml["obstacles"]);
-    for (const auto& obs : obstacles)
-    {
+    //for (const auto& obs : obstacles)
+    //{
         //ROS_INFO("Obstacle: %s, Position: [%.2f, %.2f, %.2f], Radius: %.2f", obs.getName().c_str(),
         //         obs.getPosition().x(), obs.getPosition().y(), obs.getPosition().z(), obs.getRadius());
-    }
+    //}
 
     double detect_shell_rad, agent_mass, agent_radius, velocity_max, approach_dist;
     std::vector<double> k_a_ee, k_c_ee, k_r_ee, k_r_force, k_d_ee, k_manip;
@@ -261,7 +266,6 @@ int main(int argc, char** argv) {
     while (ros::ok()) {
         if (planning_active) {
             double start_plan_timestamp = ros::Time::now().toSec();
-
             // visual goal and start 
             visualizeMarker(marker_pub, start_pos,start_orientation, 0, "cf_agent_demo", "map", 0.05, 0.0, 1.0, 0.0, 1.0);
             visualizeMarker(marker_pub, goal_pos , goal_orientation, 1, "cf_agent_demo", "map", 0.05, 1.0, 0.0, 0.0, 1.0);
@@ -283,6 +287,10 @@ int main(int argc, char** argv) {
             // }
 
             }
+            //static size_t previous_obstacle_size = obstacles.size();
+            //std::cout << "Previous obstacles size: " << previous_obstacle_size << std::endl;
+            // Assert that the obstacle size remains the same
+            //assert(obstacles.size() == previous_obstacle_size && "Obstacle size has changed!");
             // visualize obstacles 
             for (size_t i = 0; i < obstacles.size(); ++i) 
             {
@@ -297,7 +305,9 @@ int main(int argc, char** argv) {
                 open_loop = true;
             }
             else  {
-                cf_manager.setRealEEAgentPosition(current_pos);
+                if(!more_planning_its){ //only set to robot pose if it has changed significantly
+                    cf_manager.setRealEEAgentPosition(current_pos);
+                }
             }
 
             // killed
@@ -363,10 +373,19 @@ int main(int argc, char** argv) {
             // TF Frame 
             publishAgentFrame(tf_broadcaster, current_agent_pos,current_agent_orientation);
             // move Real Agent 
-            cf_manager.moveRealEEAgent(obstacles, 0.1, 1, best_agent_id);
-
-            Eigen::Vector3d updated_position = cf_manager.getNextPosition();
-            //ROS_INFO("After moveRealEEAgent, position: [%.2f, %.2f, %.2f]", updated_position.x(), updated_position.y(), updated_position.z());
+            //printf("Before moveRealEEAgent, position: [%.2f, %.2f, %.2f]\n", current_agent_pos.x(), current_agent_pos.y(), current_agent_pos.z());
+            Eigen::Vector3d updated_position;
+            const double progress_thresh = 0.01;  // 0.05 worked with 0.1 s, 1 timestep
+            do {
+                cf_manager.moveRealEEAgent(obstacles, 0.01, 10, best_agent_id);
+                updated_position = cf_manager.getNextPosition();
+                //printf("Looping moveRealEEAgent, prev: [%.2f, %.2f, %.2f], updated: [%.2f, %.2f, %.2f]\n",
+                //       current_agent_pos.x(), current_agent_pos.y(), current_agent_pos.z(),
+                //       updated_position.x(), updated_position.y(), updated_position.z());
+            } while ((updated_position - current_agent_pos).norm() < progress_thresh);
+            //cf_manager.moveRealEEAgent(obstacles, 0.1, 1, best_agent_id);
+            //Eigen::Vector3d updated_position = cf_manager.getNextPosition();
+            //printf("After moveRealEEAgent, position: [%.2f, %.2f, %.2f]\n", updated_position.x(), updated_position.y(), updated_position.z());
 
             double end_plan_timestamp = ros::Time::now().toSec();
             //ROS_INFO("Planning time: %.3f seconds", end_plan_timestamp - start_plan_timestamp);
@@ -381,8 +400,15 @@ int main(int argc, char** argv) {
             pos_msg.x = cf_manager.getNextPosition().x();
             pos_msg.y = cf_manager.getNextPosition().y();
             pos_msg.z = cf_manager.getNextPosition().z();
-            pos_pub.publish(pos_msg);
-
+            //printf("Before publishing, position: [%.2f, %.2f, %.2f]\n", pos_msg.x, pos_msg.y, pos_msg.z);
+            
+            if((current_pos - updated_position).norm()> 0.03){ //only publish significant updates, otherwise run more planner steps
+                pos_pub.publish(pos_msg);
+                more_planning_its = false;
+            }
+            else{
+                more_planning_its = true;
+            }
             // post dist
             std_msgs::Float64 dist_msg;
             dist_msg.data = cf_manager.getDistFromGoal();
@@ -402,13 +428,15 @@ int main(int argc, char** argv) {
             twist_msg.twist.angular.y = current_angular_velocity.y();
             twist_msg.twist.angular.z = current_angular_velocity.z();
             twist_pub.publish(twist_msg);
+            if(more_planning_its){
+                cf_manager.setRealEEAgentPosition(updated_position);
+            }
         } 
         else 
         {
             ROS_INFO_STREAM("No active.");
             cf_manager.setInitialPosition(start_pos);
         }
-
         ros::spinOnce();
         rate.sleep();
     }

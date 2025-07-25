@@ -25,6 +25,8 @@
     <depend>message_filters</depend>
     <depend>pcl_ros</depend>
     <depend>pcl_conversions</depend>
+    <depend>realsense2_camera</depend>
+    <depend>librealsense2</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

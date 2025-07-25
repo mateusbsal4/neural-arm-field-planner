@@ -3,6 +3,6 @@ perception_pipeline_config:
     min: [-4.0, -2.5, -4.0]
     max: [4.0, 2.5, 4.0]
   voxel_props:
-    cubic_size: 4.0 # in metres
-    voxel_resolution: 50.0 # voxels in 'cubic_size'
+    cubic_size: 1.0 # in metres
+    voxel_resolution: 15 # voxels in 'cubic_size'
     primitive_sphere_radius: 0.01 # voxels in 'cubic_size'

@@ -18,6 +18,7 @@ if package_root_dir not in sys.path:
     sys.path.insert(0, package_root_dir)
 
 from point_net.infer_gains import run_inference  
+
 INPUT_DIR = "/home/geriatronics/pmaf_ws/src/dataset_generator/data/inputs"
 DEPTH2PTCLOUD_LAUNCH = '/home/geriatronics/pmaf_ws/src/percept/launch/depth_to_ptcloud.launch'
 SIM_STATIC_LAUNCH    = '/home/geriatronics/pmaf_ws/src/percept/launch/sim_static.launch'
@@ -54,7 +55,7 @@ def launch_task(scene_name):
     global task_done
     task_done = False
 
-    ns     = "/"
+    ns = "/"
     uuid_n = roslaunch.rlutil.get_or_generate_uuid(None, False)
 
     # 1) launch perception

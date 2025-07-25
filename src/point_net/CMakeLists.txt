@@ -8,8 +8,12 @@ find_package(catkin REQUIRED COMPONENTS
 
 catkin_package()
 
+# Setup Python packaging
+catkin_python_setup()
+
 catkin_install_python(PROGRAMS
   scripts/full_pipeline.py
+  scripts/real_robot_pipeline.py
   src/point_net/model.py
   src/point_net/infer_gains.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

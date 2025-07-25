@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   pcl_conversions
   pcl_ros
+  realsense2_camera
 )
 
 # Find Python from Conda environment
@@ -57,6 +58,7 @@ install(PROGRAMS
   src/perception_node.py
   src/perception_pipeline.py
   src/sim_pipeline.py
+  src/static_depth_publisher.py
   DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
 )
 
