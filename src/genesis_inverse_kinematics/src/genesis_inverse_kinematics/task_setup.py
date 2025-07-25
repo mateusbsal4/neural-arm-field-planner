@@ -47,6 +47,20 @@ def create_scene_from_config(config):
     )
     scene.add_entity(gs.morphs.Plane())
     cam = scene.add_camera(res=(640,480), pos=(3,0,1.0), lookat=(0,0,0.5), fov=60, GUI=False)
+    # custom settings for inference
+    scene.add_entity(
+        gs.morphs.Box(pos=(0.5, -0.5, 0.6), euler=(0, 0, 0), fixed=True, size=(0.3, 0.25, 0.3)),
+        surface=gs.surfaces.Plastic(color=(0.0,0.0,1.0,1))
+    )   
+    scene.add_entity(
+        gs.morphs.Box(pos=(0.5, 0.1, 0.6), euler=(0, 0, 0), fixed=True, size=(0.3, 0.25, 0.3)),
+        surface=gs.surfaces.Plastic(color=(0.0,0.0,1.0,1))
+    )     
+    scene.add_entity(
+        gs.morphs.Box(pos=(0.3, -0.2, 0.5), euler=(0, 0, 0), fixed=True, size=(0.1, 0.3, 0.3)),
+        surface=gs.surfaces.Plastic(color=(0.0,0.0,1.0,1))
+    )   
+    #create_cuboid(scene, pose=(0.5, -0.3, 0.6, 0, 0, 0), size=(0.3, 0.3, 0.3))
     # Unpack config
     wp = tuple(config['wall_pos'])
     pp = tuple(config['pillar_pos'])
@@ -73,21 +87,21 @@ def create_scene_from_config(config):
             pos=cbc
         )
     )
-    for p in range(config['n_floating_primitives']):
-        # Cuboid
-        pose = config['pose_cuboid' + str(p)]
-        size = config['size_cuboid' + str(p)]
-        create_cuboid(scene, pose, size)
-
-        # Cylinder
-        pose = config['pose_cylinder' + str(p)]
-        radius = config['radius_cylinder' + str(p)]
-        height = config['height_cylinder' + str(p)]
-        create_cylinder(scene, pose, radius, height)
-        # Sphere
-        pose = config['pose_sphere' + str(p)]
-        radius = config['radius_sphere' + str(p)]
-        create_sphere(scene, pose, radius)
+    #for p in range(config['n_floating_primitives']):
+    #    # Cuboid
+    #    pose = config['pose_cuboid' + str(p)]
+    #    size = config['size_cuboid' + str(p)]
+    #    create_cuboid(scene, pose, size)
+#
+    #    # Cylinder
+    #    pose = config['pose_cylinder' + str(p)]
+    #    radius = config['radius_cylinder' + str(p)]
+    #    height = config['height_cylinder' + str(p)]
+    #    create_cylinder(scene, pose, radius, height)
+    #    # Sphere
+    #    pose = config['pose_sphere' + str(p)]
+    #    radius = config['radius_sphere' + str(p)]
+    #    create_sphere(scene, pose, radius)
     # Optional boxes
     if 'box_1_center' in config:
         create_cuboid(scene, pose=tuple(config['box_1_center']) + (0, 0, 0), size=tuple(config['box_1_size']))
@@ -162,8 +176,8 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
         }
     else:
         #n_floating_primitives = 6    
-        add_boxes = np.random.randn() > 0.5
-        #add_boxes = False
+        #add_boxes = np.random.randn() > 0.5
+        add_boxes = False
         #add_second_desk = np.random.randn() > 0.5
         add_second_desk = False     
         #add_second_pillar = np.random.randn() > 0.5  
@@ -204,9 +218,20 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
         # Random goal
         goal_pos = [
             np.random.uniform(0.2,0.6),
-            np.random.uniform(0.2,0.5),
-            np.random.uniform(cube_center[2], cube_center[2]+0.2)
+            np.random.uniform(-0.4,desk_center_y - desk_size[1]/2 - 0.1),
+            np.random.uniform(base_box_height/2, wall_height/2)
         ]
+        base = np.array([0.0, 0.0, base_box_height])
+        # Ensure goal position is within the robot´s reachable WS
+        if np.linalg.norm(goal_pos - base) > 1.0:
+            axis = np.random.choice([0, 1, 2])   
+            diff = np.array(goal_pos) - base
+            other_sq = diff[(axis+1)%3]**2 + diff[(axis+2)%3]**2
+            goal_pos[axis] = float((np.sqrt(1 - other_sq) + base[axis])*np.sign(goal_pos[axis]))
+
+        # inference
+        goal_pos = [0.5, -0.2, 0.55]
+
         # Save YAML config
         config = {
             'n_floating_primitives': n_floating_primitives,
@@ -221,7 +246,7 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
         }
         # Add random floating primitive shapes
         for p in range(n_floating_primitives):
-            x_range = (0.0, 1.0)
+            x_range = (0.2, 1.0)            #cant start at 0.0 otherwise obstacles might intersect with the robot
             y_range = (-2.0, desk_center_y - desk_size[1]/2)
             z_range = (0.0, wall_height)
             config['pose_cuboid'+str(p)] = (np.random.uniform(*x_range), np.random.uniform(*y_range), np.random.uniform(*z_range),
@@ -273,6 +298,9 @@ def setup_task(randomize=False, config_filename=None, include_in_dataset=False, 
             pillar2_center = (desk_size_default[0]/2, -pillar2_radius, wall_height/4)
             config['pillar2_radius'] = pillar2_radius
             config['pillar2_center'] = pillar2_center
+    
+
+
     with open(config_path, 'w') as f:
         yaml.safe_dump(config, f)
     return config, goal_pos

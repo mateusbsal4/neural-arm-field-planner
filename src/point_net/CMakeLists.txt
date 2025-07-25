@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(planner_optimizer)
+project(point_net)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
@@ -9,9 +9,15 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package()
 
 catkin_install_python(PROGRAMS
-  scripts/bayesian_optimizer.py
-  scripts/check_labels.py
+  scripts/full_pipeline.py
+  src/point_net/model.py
+  src/point_net/infer_gains.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# Install your Python modules from src
+install(DIRECTORY src/point_net/
+  DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
 )
 
 install(DIRECTORY launch/

@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="point_net" type="full_pipeline.py" name="full_pipeline" output="screen">
+    <param name="scene_name" value="$(arg scene_name)" />
+  </node>
+</launch>
