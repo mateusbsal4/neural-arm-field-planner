@@ -7,7 +7,7 @@ The project leverages the Robot Operating System (ROS) and the Genesis robotics 
 2.  Constructs a world representation (voxel grid) from the sensor data.
 3.  Uses a vector-field-based planner (`multi_agent_vector_fields`) to generate a trajectory for the Franka Emika Panda robot arm.
 4.  Employs a Bayesian Optimization framework (HEBO) to find the optimal hyperparameters for the planner in a given environment.
-5.  Utilizes a PointNet-based deep learning model to learn the mapping from an environment's features to the optimal planner parameters, enabling generalization to new, unseen environments.
+5.  Utilizes a PointNet-based deep learning model to learn the mapping from an environment's features to the optimal planner parameters.
 
 ## Codebase Structure
 
@@ -49,7 +49,6 @@ conda activate genesis_ros
 # Navigate to the root of your ROS workspace
 catkin_make -DCATKIN_WHITELIST_PACKAGES=genesis_inverse_kinematics
 catkin_make -DCATKIN_WHITELIST_PACKAGES=multi_agent_vector_fields
-catkin_make -DCATKIN_WHITELIST_PACKAGES=planner_optimizer
 ```
 
 **Terminal 2 (activate `ros_perception`):**
@@ -85,7 +84,7 @@ The following animations demonstrate the performance of the final system in two 
 ### Vertical Obstacle Avoidance
 ![Vertical Obstacle Avoidance](./results/result_vertical.gif)
 
-For comparison, the following animations show the planner's performance using fixed gains, based on the original implementation from [repository](https://github.com/riddhiman13/multi_agent_vector_fields).
+For comparison, the following animations show the planner's performance using fixed gains, based on the original [PMAF](https://github.com/riddhiman13/multi_agent_vector_fields).
 
 ### Horizontal Obstacle Avoidance (Fixed Gains)
 ![Horizontal Obstacle Avoidance (Fixed Gains)](./results/planner_without_gain_inference_horizontal.gif)
