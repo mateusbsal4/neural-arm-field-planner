@@ -1,4 +1,4 @@
-# Machine-Learning Based Robot Motion Planning for the Franka Emika Panda Robot
+# A Learning-Based Framework for Collision-Free Motion Planning
 
 This repository contains the codebase for a research project from the Technical University of Munich focused on applying machine learning techniques to the problem of robot motion planning. The primary goal is to develop a system that can generalize motion planning strategies across a variety of environments by learning optimal planner parameters.
 
@@ -23,7 +23,8 @@ The project is organized into several ROS packages located in the `src/` directo
 
 ## End-to-End Pipeline Instructions
 
-The following instructions describe how to set up the environment, build the ROS packages, and run the final end-to-end pipeline.
+The following instructions describe how to set up the environment, build the ROS packages, and run the complete end-to-end pipeline on a Franka Emika Panda robot.
+Note that, in addition to the Franka Emika Panda manipulator physically connected to your workstation via Ethernet, you will also need an Intel RealSense depth camera (D435 or D455) connected to your workstation.
 
 ### Environment Setup
 
